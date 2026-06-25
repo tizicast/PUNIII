@@ -1,9 +1,13 @@
-from extensiones import SessionLocal
-from models import Usuario, Categoria
+from extensiones import SessionLocal, engine  # ← Sumamos 'engine' aquí
+from models import Base, Usuario, Categoria  # ← Sumamos 'Base' aquí
 from werkzeug.security import generate_password_hash
 
 
 def seed_initial_data():
+    # 🚀 CREAR TABLAS EN POSTGRESQL AUTOMÁTICAMENTE SI NO EXISTEN
+    print("Creando tablas en la base de datos...")
+    Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
 
     try:
@@ -14,6 +18,7 @@ def seed_initial_data():
         # =========================
         # USUARIOS
         # =========================
+        print("Insertando usuarios de prueba...")
         admin = Usuario(
             nombre='Administrador',
             username='admin',
@@ -37,6 +42,7 @@ def seed_initial_data():
         # =========================
         # CATEGORIAS
         # =========================
+        print("Insertando categorías de prueba...")
         categorias = [
             Categoria(nombre='Herramientas', activo=True),
             Categoria(nombre='Electricidad', activo=True),
@@ -46,6 +52,7 @@ def seed_initial_data():
         db.add_all(categorias)
 
         db.commit()
+        print("¡Base de datos sembrada con éxito!")
 
     except Exception as e:
         db.rollback()
@@ -53,3 +60,7 @@ def seed_initial_data():
 
     finally:
         db.close()
+
+# Esto asegura que si corres 'python seed.py' desde la terminal, la función se ejecute sola
+if __name__ == "__main__":
+    seed_initial_data()
