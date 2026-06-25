@@ -1,0 +1,120 @@
+from sqlalchemy import Column, Integer, String, Float, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from extensiones import Base  # Asegúrate de usar tu variable declarativa Base
+
+# =====================================================================
+# 1. MODELO USUARIOS
+# =====================================================================
+class Usuario(Base):
+    __tablename__ = 'usuarios'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(100))
+    username = Column(String(50), unique=True)
+    email = Column(String(120))
+    password_hash = Column(String(200))
+    rol = Column(String(20))
+    activo = Column(Boolean, default=True)
+
+
+# =====================================================================
+# 2. MODELO CLIENTES
+# =====================================================================
+class Cliente(Base):
+    __tablename__ = 'clientes'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(100))
+    apellido = Column(String(100))
+    dni_cuit = Column(String(20))
+    telefono = Column(String(30))
+    email = Column(String(120))
+    activo = Column(Boolean, default=True)
+
+
+# =====================================================================
+# 3. MODELO PROVEEDORES
+# =====================================================================
+class Proveedor(Base):
+    __tablename__ = 'proveedores'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(150))
+    cuit = Column(String(20))
+    telefono = Column(String(30))
+    email = Column(String(120))
+    direccion = Column(String(200))
+    contacto = Column(String(100))
+    activo = Column(Boolean, default=True)
+
+
+# =====================================================================
+# 4. MODELO CATEGORIAS
+# =====================================================================
+class Categoria(Base):
+    __tablename__ = 'categorias'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(100))
+    activo = Column(Boolean, default=True)
+
+
+# =====================================================================
+# 5. MODELO ARTICULOS
+# =====================================================================
+class Articulo(Base):
+    __tablename__ = 'articulos'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    codigo = Column(String(50))
+    nombre = Column(String(150))
+    descripcion = Column(Text)
+    categoria_id = Column(Integer, ForeignKey('categorias.id'))
+    precio_compra = Column(Float)
+    precio_venta = Column(Float)
+    stock_actual = Column(Integer)
+    stock_minimo = Column(Integer)
+    activo = Column(Boolean, default=True)
+
+
+# =====================================================================
+# 6. MODELO COMPRAS
+# =====================================================================
+class Compra(Base):
+    __tablename__ = 'compras'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    numero = Column(String(20))
+    proveedor_id = Column(Integer, ForeignKey('proveedores.id'))
+    total = Column(Float)
+    observaciones = Column(Text)
+    fecha = Column(DateTime)
+
+
+# =====================================================================
+# 7. MODELO VENTAS
+# =====================================================================
+class Venta(Base):
+    __tablename__ = 'ventas'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    numero = Column(String(20))
+    cliente_id = Column(Integer, ForeignKey('clientes.id'))
+    total = Column(Float)
+    descuento = Column(Float)
+    total_final = Column(Float)
+    metodo_pago = Column(String(50))
+    fecha = Column(DateTime)
+
+
+# =====================================================================
+# 8. MODELO REMITOS (Sincronizado al 100% con tu consulta SQL)
+# =====================================================================
+class Remito(Base):
+    __tablename__ = 'remitos'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    numero = Column(String(20), nullable=True)
+    venta_id = Column(Integer, ForeignKey('ventas.id'), nullable=True)
+    observaciones = Column(Text, nullable=True)
+    firmado = Column(Boolean, default=False)
