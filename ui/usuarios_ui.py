@@ -61,14 +61,12 @@ class UsuariosFrame(tk.Frame):
         # ==================================================
 
         if not usuario or getattr(usuario, "rol", None) != "admin":
-
-            tk.Frame.__init__(self, parent, bg=COLOR_FONDO)
-
+            super().__init__(parent, bg=COLOR_FONDO)
+            
             messagebox.showerror(
                 "Acceso denegado",
                 "Solo el usuario admin puede acceder a Usuarios."
             )
-
             return
 
         super().__init__(parent, bg=COLOR_FONDO)
@@ -292,7 +290,6 @@ class UsuariosFrame(tk.Frame):
         ).pack(anchor="w", padx=20)
 
         style = ttk.Style()
-
         style.theme_use("clam")
 
         style.configure(
@@ -449,34 +446,40 @@ class UsuariosFrame(tk.Frame):
             )
 
     # ======================================================
-    # CREAR
+    # CREAR / GUARDAR
     # ======================================================
 
     def guardar(self):
 
-        ok, msg = crear_usuario(
-            self.entry_nombre.get(),
-            self.entry_username.get(),
-            self.entry_email.get(),
-            self.entry_password.get(),
-            self.combo_rol.get() or "empleado"
-        )
+        nombre = self.entry_nombre.get().strip()
+        username = self.entry_username.get().strip()
+        email = self.entry_email.get().strip()
+        password = self.entry_password.get().strip()
+        rol = self.combo_rol.get() or "empleado"
 
-        messagebox.showinfo(
-            "Información",
-            msg
-        )
+        # Validación visual antes de interactuar con las rutas de negocio
+        if not nombre or not username or not password:
+            messagebox.showwarning(
+                "Campos vacíos", 
+                "Los campos Nombre, Username y Contraseña son obligatorios."
+            )
+            return
+
+        ok, msg = crear_usuario(nombre, username, email, password, rol)
 
         if ok:
-
+            messagebox.showinfo("Éxito", msg)
+            
+            # Limpiamos las cajas de texto tras guardar
             self.entry_nombre.delete(0, "end")
             self.entry_username.delete(0, "end")
             self.entry_email.delete(0, "end")
             self.entry_password.delete(0, "end")
-
             self.combo_rol.set("empleado")
 
             self.refrescar()
+        else:
+            messagebox.showerror("Error", msg)
 
     # ======================================================
     # DESACTIVAR
@@ -484,12 +487,11 @@ class UsuariosFrame(tk.Frame):
 
     def desactivar(self, id):
 
-        ok, msg = desactivar_usuario(id)
+        if messagebox.askyesno("Confirmar", "¿Seguro que desea desactivar este usuario?"):
+            ok, msg = desactivar_usuario(id)
 
-        messagebox.showinfo(
-            "Información",
-            msg
-        )
-
-        if ok:
-            self.refrescar()
+            if ok:
+                messagebox.showinfo("Información", msg)
+                self.refrescar()
+            else:
+                messagebox.showerror("Error", msg)
