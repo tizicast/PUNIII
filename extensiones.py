@@ -1,10 +1,14 @@
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "postgresql+psycopg2://postgres:admin@localhost:5432/ferreteria"
+BASE_DIR = Path(__file__).resolve().parent
+DATABASE_URL = f"sqlite:///{BASE_DIR / 'ferreteria.db'}"
 
 engine = create_engine(
     DATABASE_URL,
+    connect_args={"check_same_thread": False},
     pool_pre_ping=True
 )
 
@@ -15,6 +19,7 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
 
 def get_db():
     return SessionLocal()

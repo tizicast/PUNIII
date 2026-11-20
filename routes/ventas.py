@@ -18,7 +18,7 @@ def listar_ventas():
 # =========================
 # CREAR VENTA
 # =========================
-def crear_venta(numero, cliente_id, total=0, descuento=0, metodo_pago="efectivo"):
+def crear_venta(numero, cliente_id=None, total=0, descuento=0, metodo_pago="efectivo"):
 
     db = SessionLocal()
 
@@ -103,7 +103,7 @@ def abrir_nueva_venta():
     numero = tk.Entry(ventana)
     numero.pack()
 
-    tk.Label(ventana, text="ID Cliente").pack()
+    tk.Label(ventana, text="ID Cliente (opcional)").pack()
     cliente = tk.Entry(ventana)
     cliente.pack()
 

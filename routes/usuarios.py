@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
+from werkzeug.security import generate_password_hash
 
 from extensiones import SessionLocal
 from models import Usuario

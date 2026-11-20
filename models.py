@@ -255,6 +255,11 @@ class Compra(Base):
         Text
     )
 
+    activo = Column(
+        Boolean,
+        default=True
+    )
+
     fecha = Column(
         DateTime,
         default=datetime.utcnow

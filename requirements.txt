@@ -1,0 +1,4 @@
+Pillow
+SQLAlchemy
+werkzeug
+reportlab
