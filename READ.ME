@@ -1,8 +1,28 @@
-EXTENSIONES
-python -m pip install sqlalchemy
-python -m pip install werkzeug
-python -m pip install pillow
-python -m pip install psycopg2-binary
+# Punihard
 
-git config --global user.name "Mateo Scarabelli"
-git config --global user.email "est.scarabelli.mateo@latecnicalf.com.ar"
+## Instalación y primer inicio
+
+1. Instalar Python y ejecutar `python -m pip install -r requirements.txt`.
+2. Iniciar con `python main.py`.
+3. La aplicación usa `ferreteria.db` en el directorio del proyecto. Antes de actualizar una instalación real, cerrar Punihard y hacer una copia de ese archivo.
+4. En una base nueva se crean las cuentas iniciales `admin` y `empleado`. Cambiar sus contraseñas antes de poner el sistema en operación; las credenciales de demostración están definidas en `seed.py`.
+
+El arranque aplica migraciones aditivas y carga las categorías/cuentas faltantes sin borrar registros existentes. No reemplaza ni reconstruye tablas con información.
+
+## Esquema de datos
+
+- `usuarios`: cuentas activas y rol (`admin` o `vendedor`).
+- `categorias`: categorías de inventario.
+- `articulos`: SKU/código, categoría, unidad, costo, margen, precio de venta, stock y mínimo.
+- `clientes`: identificación y contacto, condición IVA y saldo de cuenta corriente.
+- `proveedores`: razón social, CUIT, contacto, email, dirección y rubro.
+- `ventas` y `detalle_ventas`: cabecera, cliente, pago, descuentos y líneas con precio/costo histórico.
+- `compras` y `detalle_compras`: comprobante, proveedor, líneas y costos unitarios.
+- `movimientos_stock`: trazabilidad de altas, compras, ventas y anulaciones.
+- `remitos` y `detalle_remitos`: entrega vinculada a una venta o independiente, destinatario, estado y productos.
+
+Las referencias entre registros usan claves foráneas. Las ventas y compras se anulan conservando su historial y revirtiendo stock; las operaciones de stock se validan y guardan en una única transacción.
+
+## Límites operativos
+
+Los comprobantes PDF generados por Punihard son documentos internos/remitos y no sustituyen una factura fiscal. Configurar los datos legales y comerciales del local y realizar copias de seguridad regulares antes de utilizarlo en producción.

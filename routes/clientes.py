@@ -1,138 +1,107 @@
-from extensiones import SessionLocal
-from models import Cliente
 from sqlalchemy import or_
 
-
-# ======================================================
-# OBTENER SESIÓN
-# ======================================================
-def get_db():
-    return SessionLocal()
+from extensiones import SessionLocal
+from models import Cliente
 
 
-# ======================================================
-# LISTAR CLIENTES (SOLO ACTIVOS)
-# ======================================================
 def listar_clientes():
-    db = get_db()
+    db = SessionLocal()
     try:
-        # Filtramos para traer solo los que tienen activo=True
-        return db.query(Cliente).filter_by(activo=True).all()
-    except Exception as e:
-        print(f"Error al listar clientes: {e}")
-        return []
+        return db.query(Cliente).filter_by(activo=True).order_by(Cliente.nombre, Cliente.apellido).all()
     finally:
         db.close()
 
 
-# ======================================================
-# BUSCAR CLIENTES (SOLO ACTIVOS)
-# ======================================================
 def buscar_clientes(texto):
-    db = get_db()
+    db = SessionLocal()
     try:
-        # Busca por coincidencia de texto, pero solo si el cliente está activo
+        like = f"%{str(texto or '').strip()}%"
         return db.query(Cliente).filter(
-            activo=True
-        ).filter(
+            Cliente.activo.is_(True),
             or_(
-                Cliente.nombre.like(f"%{texto}%"),
-                Cliente.apellido.like(f"%{texto}%"),
-                Cliente.telefono.like(f"%{texto}%")
-            )
-        ).all()
-    except Exception as e:
-        print(f"Error al buscar clientes: {e}")
-        return []
+                Cliente.nombre.ilike(like),
+                Cliente.apellido.ilike(like),
+                Cliente.dni_cuit.ilike(like),
+                Cliente.telefono.ilike(like),
+                Cliente.email.ilike(like),
+            ),
+        ).order_by(Cliente.nombre, Cliente.apellido).all()
     finally:
         db.close()
 
 
-# ======================================================
-# CREAR CLIENTE
-# ======================================================
-def crear_cliente(nombre, apellido, telefono):
-    # Validaciones previas básicas de datos vacíos
-    if not nombre.strip() or not apellido.strip() or not telefono.strip():
-        return False, "Todos los campos son obligatorios"
-
-    db = get_db()
+def crear_cliente(nombre, apellido="", telefono="", dni_cuit="", email="", direccion="",
+                  condicion_iva="Consumidor Final"):
+    nombre = str(nombre or "").strip()
+    if not nombre:
+        return False, "El nombre o razón social es obligatorio."
+    db = SessionLocal()
     try:
-        # Verificar si ya existe un cliente con ese mismo teléfono
-        existente = db.query(Cliente).filter_by(telefono=telefono).first()
-        if existente:
-            return False, "El cliente con este teléfono ya existe"
-
-        # Crear nueva instancia
+        dni_cuit = str(dni_cuit or "").strip() or None
+        if dni_cuit and db.query(Cliente).filter_by(dni_cuit=dni_cuit).first():
+            return False, "Ya existe un cliente con ese DNI/CUIT."
         cliente = Cliente(
-            nombre=nombre.strip(),
-            apellido=apellido.strip(),
-            telefono=telefono.strip(),
-            activo=True
+            nombre=nombre,
+            apellido=str(apellido or "").strip(),
+            dni_cuit=dni_cuit,
+            telefono=str(telefono or "").strip(),
+            email=str(email or "").strip(),
+            direccion=str(direccion or "").strip(),
+            condicion_iva=str(condicion_iva or "Consumidor Final").strip(),
+            activo=True,
         )
-
         db.add(cliente)
         db.commit()
-        return True, "Cliente creado con éxito"
-        
-    except Exception as e:
-        db.rollback() # Revierte los cambios si hay error en Postgres
-        print(f"Error al crear cliente: {e}")
-        return False, f"Error en la base de datos: {e}"
-    finally:
-        db.close()
-
-
-# ======================================================
-# EDITAR CLIENTE
-# ======================================================
-def editar_cliente(id, nombre, apellido, telefono):
-    if not nombre.strip() or not apellido.strip() or not telefono.strip():
-        return False, "Todos los campos son obligatorios"
-
-    db = get_db()
-    try:
-        cliente = db.query(Cliente).get(id)
-
-        if not cliente:
-            return False, "Cliente no encontrado"
-
-        # Actualizar datos
-        cliente.nombre = nombre.strip()
-        cliente.apellido = apellido.strip()
-        cliente.telefono = telefono.strip()
-
-        db.commit()
-        return True, "Cliente actualizado con éxito"
-        
-    except Exception as e:
+        return True, "Cliente creado correctamente."
+    except Exception as error:
         db.rollback()
-        print(f"Error al editar cliente: {e}")
-        return False, f"Error al actualizar: {e}"
+        return False, f"No se pudo crear el cliente: {error}"
     finally:
         db.close()
 
 
-# ======================================================
-# ELIMINAR (BAJA LÓGICA)
-# ======================================================
+def editar_cliente(id, nombre, apellido="", telefono="", dni_cuit="", email="",
+                   direccion="", condicion_iva="Consumidor Final"):
+    nombre = str(nombre or "").strip()
+    if not nombre:
+        return False, "El nombre o razón social es obligatorio."
+    db = SessionLocal()
+    try:
+        cliente = db.query(Cliente).filter_by(id=id, activo=True).first()
+        if not cliente:
+            return False, "Cliente no encontrado o inactivo."
+        dni_cuit = str(dni_cuit or "").strip() or None
+        if dni_cuit and db.query(Cliente).filter(
+            Cliente.dni_cuit == dni_cuit, Cliente.id != id
+        ).first():
+            return False, "Ese DNI/CUIT ya pertenece a otro cliente."
+        cliente.nombre = nombre
+        cliente.apellido = str(apellido or "").strip()
+        cliente.dni_cuit = dni_cuit
+        cliente.telefono = str(telefono or "").strip()
+        cliente.email = str(email or "").strip()
+        cliente.direccion = str(direccion or "").strip()
+        cliente.condicion_iva = str(condicion_iva or "Consumidor Final").strip()
+        db.commit()
+        return True, "Cliente actualizado correctamente."
+    except Exception as error:
+        db.rollback()
+        return False, f"No se pudo actualizar el cliente: {error}"
+    finally:
+        db.close()
+
+
 def eliminar_cliente(id):
-    db = get_db()
+    db = SessionLocal()
     try:
-        cliente = db.query(Cliente).get(id)
-
+        cliente = db.query(Cliente).filter_by(id=id, activo=True).first()
         if not cliente:
-            return False, "Cliente no encontrado"
-
-        # Cambiar estado a inactivo para ocultarlo en el sistema
+            return False, "Cliente no encontrado o inactivo."
         cliente.activo = False
-
         db.commit()
-        return True, "Cliente eliminado con éxito"
-        
-    except Exception as e:
+        return True, "Cliente desactivado."
+    except Exception as error:
         db.rollback()
-        print(f"Error al eliminar cliente: {e}")
-        return False, f"Error al eliminar: {e}"
+        return False, f"No se pudo desactivar el cliente: {error}"
     finally:
         db.close()

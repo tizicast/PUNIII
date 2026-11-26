@@ -3,6 +3,7 @@ from tkinter import messagebox
 from PIL import Image, ImageTk
 
 from routes.auth import login_usuario
+from ui.layout import set_compact_scaling
 
 
 # ======================================================
@@ -52,12 +53,14 @@ def ventana_login(on_success):
     # ==================================================
 
     win = tk.Tk()
+    set_compact_scaling(win)
 
     win.title("Punihard - Login")
     win.state("zoomed")
     win.configure(bg=COLOR_FONDO)
 
-    win.resizable(False, False)
+    win.resizable(True, True)
+    win.minsize(800, 540)
 
 
 
@@ -68,7 +71,7 @@ def ventana_login(on_success):
     left = tk.Frame(
         win,
         bg=COLOR_PANEL,
-        width=450
+        width=360
     )
 
     left.pack(side="left", fill="y")
@@ -81,7 +84,7 @@ def ventana_login(on_success):
     try:
 
         imagen_logo = Image.open("punihard.png")
-        imagen_logo = imagen_logo.resize((140, 140))
+        imagen_logo = imagen_logo.resize((120, 120))
 
         logo = ImageTk.PhotoImage(imagen_logo)
 
@@ -92,7 +95,7 @@ def ventana_login(on_success):
         )
 
         label_logo.image = logo
-        label_logo.pack(pady=(80, 20))
+        label_logo.pack(pady=(50, 16))
 
     except:
 
@@ -102,7 +105,7 @@ def ventana_login(on_success):
             bg=COLOR_PANEL,
             fg=COLOR_NARANJA,
             font=(FUENTE, 70)
-        ).pack(pady=(80, 20))
+        ).pack(pady=(50, 16))
 
     # ==================================================
     # TITULOS
@@ -150,8 +153,8 @@ def ventana_login(on_success):
     login_box = tk.Frame(
         right,
         bg=COLOR_PANEL,
-        width=420,
-        height=420,
+        width=380,
+        height=390,
         highlightbackground=COLOR_BORDE,
         highlightthickness=1
     )
@@ -169,7 +172,7 @@ def ventana_login(on_success):
         bg=COLOR_PANEL,
         fg=COLOR_TEXTO,
         font=(FUENTE, 24, "bold")
-    ).pack(pady=(40, 10))
+    ).pack(pady=(30, 8))
 
     tk.Label(
         login_box,
@@ -177,7 +180,7 @@ def ventana_login(on_success):
         bg=COLOR_PANEL,
         fg=COLOR_SECUNDARIO,
         font=(FUENTE, 11)
-    ).pack(pady=(0, 30))
+    ).pack(pady=(0, 20))
 
     # ==================================================
     # USER
@@ -201,7 +204,7 @@ def ventana_login(on_success):
         width=28
     )
 
-    entry_user.pack(ipady=10, pady=(8, 20))
+    entry_user.pack(ipady=6, pady=(6, 14))
 
     # ==================================================
     # PASSWORD
@@ -226,7 +229,7 @@ def ventana_login(on_success):
         width=28
     )
 
-    entry_pass.pack(ipady=10, pady=(8, 30))
+    entry_pass.pack(ipady=6, pady=(6, 18))
 
     # ==================================================
     # VALIDAR LOGIN
@@ -268,7 +271,7 @@ def ventana_login(on_success):
         cursor="hand2",
         font=(FUENTE, 12, "bold"),
         padx=30,
-        pady=12
+        pady=8
     )
 
     btn_login.pack()

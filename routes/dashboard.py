@@ -4,6 +4,11 @@ from tkinter import ttk
 from routes.articulos import listar_articulos
 from routes.ventas import listar_ventas
 from routes.compras import listar_compras
+from datetime import datetime, time
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
+from models import Articulo, Compra, Cliente, MovimientoStock, Venta
+from extensiones import SessionLocal
 
 
 # ======================================================
@@ -23,6 +28,48 @@ COLOR_SECUNDARIO = "#9e9e9e"
 COLOR_BORDE = "#2a2a2a"
 
 FUENTE = "Segoe UI"
+
+
+def obtener_resumen_diario():
+    db = SessionLocal()
+    try:
+        inicio = datetime.combine(datetime.now().date(), time.min)
+        ventas_del_dia = db.query(
+            func.coalesce(func.sum(Venta.total_final), 0),
+            func.count(Venta.id),
+        ).filter(
+            Venta.fecha >= inicio,
+            Venta.anulada.is_(False),
+        ).one()
+        stock_bajo = db.query(Articulo).filter(
+            Articulo.activo.is_(True),
+            Articulo.stock_actual <= Articulo.stock_minimo,
+        ).count()
+        valor_inventario = db.query(
+            func.coalesce(func.sum(Articulo.stock_actual * Articulo.precio_compra), 0)
+        ).filter(Articulo.activo.is_(True)).scalar()
+        movimientos = db.query(MovimientoStock).options(
+            joinedload(MovimientoStock.articulo)
+        ).filter(
+            MovimientoStock.fecha >= inicio,
+        ).order_by(MovimientoStock.fecha.desc()).limit(12).all()
+        return {
+            "ventas_dia": float(ventas_del_dia[0] or 0),
+            "cantidad_ventas": int(ventas_del_dia[1] or 0),
+            "stock_bajo": stock_bajo,
+            "valor_inventario": float(valor_inventario or 0),
+            "movimientos": [
+                {
+                    "fecha": movimiento.fecha,
+                    "tipo": movimiento.tipo,
+                    "articulo": movimiento.articulo.nombre,
+                    "cantidad": movimiento.cantidad,
+                }
+                for movimiento in movimientos
+            ],
+        }
+    finally:
+        db.close()
 
 
 # ======================================================

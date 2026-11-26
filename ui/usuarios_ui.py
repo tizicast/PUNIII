@@ -6,6 +6,7 @@ from routes.usuarios import (
     crear_usuario,
     desactivar_usuario
 )
+from ui.layout import ScrollableFrame
 
 
 # ======================================================
@@ -70,6 +71,7 @@ class UsuariosFrame(tk.Frame):
             return
 
         super().__init__(parent, bg=COLOR_FONDO)
+        self.usuario = usuario
 
         # ==================================================
         # HEADER
@@ -78,7 +80,7 @@ class UsuariosFrame(tk.Frame):
         header = tk.Frame(
             self,
             bg=COLOR_PANEL,
-            height=90
+            height=68
         )
 
         header.pack(fill="x")
@@ -89,19 +91,16 @@ class UsuariosFrame(tk.Frame):
             text="👤 Usuarios del Sistema",
             bg=COLOR_PANEL,
             fg=COLOR_TEXTO,
-            font=(FUENTE, 22, "bold")
-        ).pack(side="left", padx=30, pady=25)
+            font=(FUENTE, 19, "bold")
+        ).pack(side="left", padx=20, pady=16)
 
         # ==================================================
         # CONTENIDO
         # ==================================================
 
-        contenido = tk.Frame(
-            self,
-            bg=COLOR_FONDO
-        )
-
-        contenido.pack(fill="both", expand=True, padx=25, pady=25)
+        scroll = ScrollableFrame(self, bg=COLOR_FONDO)
+        scroll.pack(fill="both", expand=True, padx=12, pady=8)
+        contenido = scroll.content
 
         # ==================================================
         # PANEL LISTA
@@ -127,7 +126,7 @@ class UsuariosFrame(tk.Frame):
             bg=COLOR_PANEL,
             fg=COLOR_TEXTO,
             font=(FUENTE, 14, "bold")
-        ).pack(anchor="w", padx=20, pady=20)
+        ).pack(anchor="w", padx=14, pady=14)
 
         self.frame_lista = tk.Frame(
             panel_lista,
@@ -148,7 +147,7 @@ class UsuariosFrame(tk.Frame):
         panel_form = tk.Frame(
             contenido,
             bg=COLOR_PANEL,
-            width=360,
+            width=320,
             highlightbackground=COLOR_BORDE,
             highlightthickness=1
         )
@@ -161,8 +160,8 @@ class UsuariosFrame(tk.Frame):
             text="➕ Nuevo usuario",
             bg=COLOR_PANEL,
             fg=COLOR_TEXTO,
-            font=(FUENTE, 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(20, 25))
+            font=(FUENTE, 13, "bold")
+        ).pack(anchor="w", padx=14, pady=(14, 14))
 
         # ==================================================
         # NOMBRE
@@ -187,9 +186,9 @@ class UsuariosFrame(tk.Frame):
 
         self.entry_nombre.pack(
             fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
+            padx=14,
+            pady=(5, 10),
+            ipady=5
         )
 
         # ==================================================
@@ -215,9 +214,9 @@ class UsuariosFrame(tk.Frame):
 
         self.entry_username.pack(
             fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
+            padx=14,
+            pady=(5, 10),
+            ipady=5
         )
 
         # ==================================================
@@ -243,9 +242,9 @@ class UsuariosFrame(tk.Frame):
 
         self.entry_email.pack(
             fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
+            padx=14,
+            pady=(5, 10),
+            ipady=5
         )
 
         # ==================================================
@@ -272,9 +271,9 @@ class UsuariosFrame(tk.Frame):
 
         self.entry_password.pack(
             fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
+            padx=14,
+            pady=(5, 10),
+            ipady=5
         )
 
         # ==================================================
@@ -303,18 +302,18 @@ class UsuariosFrame(tk.Frame):
 
         self.combo_rol = ttk.Combobox(
             panel_form,
-            values=["admin", "empleado"],
+            values=["Administrador", "Vendedor"],
             state="readonly",
             font=(FUENTE, 10)
         )
 
-        self.combo_rol.set("empleado")
+        self.combo_rol.set("Vendedor")
 
         self.combo_rol.pack(
             fill="x",
-            padx=20,
-            pady=(8, 30),
-            ipady=6
+            padx=14,
+            pady=(5, 14),
+            ipady=4
         )
 
         # ==================================================
@@ -338,7 +337,7 @@ class UsuariosFrame(tk.Frame):
 
         btn_crear.pack(
             fill="x",
-            padx=20
+            padx=14
         )
 
         hover(
@@ -362,7 +361,7 @@ class UsuariosFrame(tk.Frame):
         for widget in self.frame_lista.winfo_children():
             widget.destroy()
 
-        usuarios = listar_usuarios()
+        usuarios = listar_usuarios(self.usuario.id)
 
         if not usuarios:
 
@@ -455,7 +454,9 @@ class UsuariosFrame(tk.Frame):
         username = self.entry_username.get().strip()
         email = self.entry_email.get().strip()
         password = self.entry_password.get().strip()
-        rol = self.combo_rol.get() or "empleado"
+        rol = {"Administrador": "admin", "Vendedor": "vendedor"}.get(
+            self.combo_rol.get(), ""
+        )
 
         # Validación visual antes de interactuar con las rutas de negocio
         if not nombre or not username or not password:
@@ -465,7 +466,10 @@ class UsuariosFrame(tk.Frame):
             )
             return
 
-        ok, msg = crear_usuario(nombre, username, email, password, rol)
+        ok, msg = crear_usuario(
+            nombre, username, email, password, rol,
+            creado_por_id=self.usuario.id,
+        )
 
         if ok:
             messagebox.showinfo("Éxito", msg)
@@ -475,7 +479,7 @@ class UsuariosFrame(tk.Frame):
             self.entry_username.delete(0, "end")
             self.entry_email.delete(0, "end")
             self.entry_password.delete(0, "end")
-            self.combo_rol.set("empleado")
+            self.combo_rol.set("Vendedor")
 
             self.refrescar()
         else:
@@ -488,7 +492,7 @@ class UsuariosFrame(tk.Frame):
     def desactivar(self, id):
 
         if messagebox.askyesno("Confirmar", "¿Seguro que desea desactivar este usuario?"):
-            ok, msg = desactivar_usuario(id)
+            ok, msg = desactivar_usuario(id, desactivado_por_id=self.usuario.id)
 
             if ok:
                 messagebox.showinfo("Información", msg)

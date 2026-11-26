@@ -14,6 +14,7 @@ from ui import reportes_ui
 from ui import usuarios_ui
 from ui import articulos_ui
 from ui import dashboard_ui
+from ui.layout import set_compact_scaling
 
 
 # ======================================================
@@ -74,62 +75,6 @@ def mostrar_frame(container, frame_class):
     frame.pack(fill="both", expand=True)
 
 
-def mostrar_home(container):
-
-    for widget in container.winfo_children():
-        widget.destroy()
-
-    # HEADER
-    header = tk.Frame(
-        container,
-        bg=COLOR_PANEL,
-        height=80
-    )
-
-    header.pack(fill="x")
-    header.pack_propagate(False)
-
-    tk.Label(
-        header,
-        text="📊 Panel Principal",
-        bg=COLOR_PANEL,
-        fg=COLOR_TEXTO,
-        font=(FUENTE, 22, "bold")
-    ).pack(side="left", padx=30, pady=20)
-
-    tk.Label(
-        header,
-        text="Sistema de gestión ferretería",
-        bg=COLOR_PANEL,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 11)
-    ).pack(side="right", padx=30)
-
-    # HOME
-    home = tk.Frame(
-        container,
-        bg=COLOR_FONDO
-    )
-
-    home.pack(fill="both", expand=True)
-
-    tk.Label(
-        home,
-        text="⚡ Bienvenido al sistema",
-        bg=COLOR_FONDO,
-        fg=COLOR_TEXTO,
-        font=(FUENTE, 28, "bold")
-    ).pack(pady=(120, 10))
-
-    tk.Label(
-        home,
-        text="Seleccioná una opción del menú lateral",
-        bg=COLOR_FONDO,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 13)
-    ).pack()
-
-
 # ======================================================
 # CREAR BOTÓN SIDEBAR
 # ======================================================
@@ -153,10 +98,10 @@ def crear_boton_sidebar(parent, texto, comando):
         # =====================
 
         anchor="w",
-        padx=16,
-        pady=8,
+        padx=12,
+        pady=5,
 
-        font=(FUENTE, 10, "bold"),
+        font=(FUENTE, 9, "bold"),
 
         # altura visual más compacta
         height=1
@@ -174,6 +119,7 @@ def crear_boton_sidebar(parent, texto, comando):
 def main_menu(usuario):
 
     ventana = tk.Tk()
+    set_compact_scaling(ventana)
 
     ventana.title("Sistema")
     ventana.geometry("1400x800")
@@ -182,7 +128,7 @@ def main_menu(usuario):
     ventana.state("zoomed")
     ventana.configure(bg=COLOR_FONDO)
 
-    ventana.minsize(1200, 700)
+    ventana.minsize(960, 620)
 
     try:
         ventana.iconbitmap("punihard.ico")
@@ -195,7 +141,7 @@ def main_menu(usuario):
 
     sidebar = tk.Frame(
         ventana,
-        width=220,
+        width=190,
         bg=COLOR_SIDEBAR
     )
 
@@ -211,14 +157,14 @@ def main_menu(usuario):
         bg=COLOR_SIDEBAR
     )
 
-    top_sidebar.pack(fill="x", pady=(25, 15))
+    top_sidebar.pack(fill="x", pady=(16, 10))
 
     label_icon = tk.Label(
         top_sidebar,
         text="⚡",
         bg=COLOR_SIDEBAR,
         fg=COLOR_NARANJA,
-        font=(FUENTE, 32),
+        font=(FUENTE, 27),
         cursor="hand2"
     )
     label_icon.pack()
@@ -226,27 +172,19 @@ def main_menu(usuario):
         "<Button-1>",
         lambda e: mostrar_frame(container, dashboard_ui.DashboardFrame)
     )
-    label_icon.bind(
-        "<Double-1>",
-        lambda e: mostrar_home(container)
-    )
 
     label_title = tk.Label(
         top_sidebar,
         text="Punihard",
         bg=COLOR_SIDEBAR,
         fg=COLOR_TEXTO,
-        font=(FUENTE, 20, "bold"),
+        font=(FUENTE, 17, "bold"),
         cursor="hand2"
     )
     label_title.pack()
     label_title.bind(
         "<Button-1>",
         lambda e: mostrar_frame(container, dashboard_ui.DashboardFrame)
-    )
-    label_title.bind(
-        "<Double-1>",
-        lambda e: mostrar_home(container)
     )
 
     label_sub = tk.Label(
@@ -261,10 +199,6 @@ def main_menu(usuario):
     label_sub.bind(
         "<Button-1>",
         lambda e: mostrar_frame(container, dashboard_ui.DashboardFrame)
-    )
-    label_sub.bind(
-        "<Double-1>",
-        lambda e: mostrar_home(container)
     )
 
     # ==================================================
@@ -318,7 +252,9 @@ def main_menu(usuario):
     crear_boton_sidebar(
         menu,
         "📦  Artículos",
-        lambda: mostrar_frame(container, articulos_ui.ArticulosFrame)
+        lambda: mostrar_frame(
+            container, lambda parent: articulos_ui.ArticulosFrame(parent, usuario)
+        )
     ).pack(fill="x", pady=1, padx=10)
 
     crear_boton_sidebar(
@@ -351,11 +287,14 @@ def main_menu(usuario):
         lambda: mostrar_frame(container, remitos_ui.RemitosFrame)
     ).pack(fill="x", pady=1, padx=10)
 
-    crear_boton_sidebar(
-        menu,
-        "📊  Reportes",
-        lambda: mostrar_frame(container, reportes_ui.ReportesFrame)
-    ).pack(fill="x", pady=1, padx=10)
+    if usuario.rol == "admin":
+        crear_boton_sidebar(
+            menu,
+            "📊  Reportes",
+            lambda: mostrar_frame(
+                container, lambda parent: reportes_ui.ReportesFrame(parent, usuario)
+            )
+        ).pack(fill="x", pady=1, padx=10)
 
     # ==================================================
     # SOLO ADMIN
@@ -401,62 +340,16 @@ def main_menu(usuario):
     )
 
     container.pack(side="right", fill="both", expand=True)
+    container.menu_actions = {
+        "ventas": lambda: mostrar_frame(container, ventas_ui.VentasFrame),
+        "articulos": lambda: mostrar_frame(
+            container, lambda parent: articulos_ui.ArticulosFrame(parent, usuario)
+        ),
+        "compras": lambda: mostrar_frame(container, compras_ui.ComprasFrame),
+    }
 
-    # ==================================================
-    # HEADER CONTENIDO
-    # ==================================================
-
-    header = tk.Frame(
-        container,
-        bg=COLOR_PANEL,
-        height=80
-    )
-
-    header.pack(fill="x")
-    header.pack_propagate(False)
-
-    tk.Label(
-        header,
-        text="📊 Panel Principal",
-        bg=COLOR_PANEL,
-        fg=COLOR_TEXTO,
-        font=(FUENTE, 22, "bold")
-    ).pack(side="left", padx=30, pady=20)
-
-    tk.Label(
-        header,
-        text="Sistema de gestión ferretería",
-        bg=COLOR_PANEL,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 11)
-    ).pack(side="right", padx=30)
-
-    # ==================================================
-    # PANTALLA INICIAL
-    # ==================================================
-
-    home = tk.Frame(
-        container,
-        bg=COLOR_FONDO
-    )
-
-    home.pack(fill="both", expand=True)
-
-    tk.Label(
-        home,
-        text="⚡ Bienvenido al sistema",
-        bg=COLOR_FONDO,
-        fg=COLOR_TEXTO,
-        font=(FUENTE, 28, "bold")
-    ).pack(pady=(120, 10))
-
-    tk.Label(
-        home,
-        text="Seleccioná una opción del menú lateral",
-        bg=COLOR_FONDO,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 13)
-    ).pack()
+    dashboard_ui.DashboardFrame(container, usuario).pack(fill="both", expand=True)
+    ventana.bind("<F2>", lambda _event: container.menu_actions["ventas"]())
 
     ventana.mainloop()
 

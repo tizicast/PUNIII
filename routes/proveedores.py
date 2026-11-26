@@ -1,85 +1,105 @@
-from extensiones import SessionLocal
-from models import Proveedor
 from sqlalchemy import or_
 
-def get_db():
-    return SessionLocal()
+from extensiones import SessionLocal
+from models import Proveedor
 
-# ======================================================
-# LISTAR PROVEEDORES (SOLO ACTIVOS)
-# ======================================================
+
 def listar_proveedores():
-    db = get_db()
+    db = SessionLocal()
     try:
-        return db.query(Proveedor).filter_by(activo=True).all()
-    except Exception as e:
-        print(f"Error al listar proveedores: {e}")
-        return []
+        return db.query(Proveedor).filter_by(activo=True).order_by(Proveedor.nombre).all()
     finally:
         db.close()
 
-# ======================================================
-# BUSCAR PROVEEDORES (CORREGIDO)
-# ======================================================
+
 def buscar_proveedores(texto):
-    db = get_db()
+    db = SessionLocal()
     try:
-        # CORREGIDO: Se usa filter_by o Proveedor.activo == True
-        return db.query(Proveedor).filter_by(activo=True).filter(
+        like = f"%{str(texto or '').strip()}%"
+        return db.query(Proveedor).filter(
+            Proveedor.activo.is_(True),
             or_(
-                Proveedor.nombre.like(f"%{texto}%"),
-                Proveedor.contacto.like(f"%{texto}%"),
-                Proveedor.telefono.like(f"%{texto}%")
-            )
-        ).all()
-    except Exception as e:
-        print(f"Error al buscar proveedores: {e}")
-        return []
+                Proveedor.nombre.ilike(like),
+                Proveedor.contacto.ilike(like),
+                Proveedor.cuit.ilike(like),
+                Proveedor.telefono.ilike(like),
+                Proveedor.email.ilike(like),
+                Proveedor.rubro.ilike(like),
+            ),
+        ).order_by(Proveedor.nombre).all()
     finally:
         db.close()
 
-# ======================================================
-# CREAR PROVEEDOR
-# ======================================================
-def crear_proveedor(nombre, contacto, telefono):
-    if not nombre.strip():
-        return False, "El campo Nombre es obligatorio"
 
-    db = get_db()
+def crear_proveedor(nombre, contacto="", telefono="", cuit="", email="", rubro="", direccion=""):
+    nombre = str(nombre or "").strip()
+    if not nombre:
+        return False, "La razón social es obligatoria."
+    db = SessionLocal()
     try:
-        proveedor = Proveedor(
-            nombre=nombre.strip(),
-            contacto=contacto.strip(),
-            telefono=telefono.strip(),
-            activo=True
-        )
-        db.add(proveedor)
+        cuit = str(cuit or "").strip() or None
+        if cuit and db.query(Proveedor).filter_by(cuit=cuit).first():
+            return False, "Ya existe un proveedor con ese CUIT."
+        db.add(Proveedor(
+            nombre=nombre,
+            cuit=cuit,
+            contacto=str(contacto or "").strip(),
+            telefono=str(telefono or "").strip(),
+            email=str(email or "").strip(),
+            rubro=str(rubro or "").strip(),
+            direccion=str(direccion or "").strip(),
+            activo=True,
+        ))
         db.commit()
-        return True, "Proveedor creado con éxito"
-    except Exception as e:
+        return True, "Proveedor creado correctamente."
+    except Exception as error:
         db.rollback()
-        print(f"Error al crear proveedor: {e}")
-        return False, f"Error en la base de datos: {e}"
+        return False, f"No se pudo crear el proveedor: {error}"
     finally:
         db.close()
 
-# ======================================================
-# ELIMINAR PROVEEDOR (BAJA LÓGICA)
-# ======================================================
+
+def editar_proveedor(id, nombre, contacto="", telefono="", cuit="", email="", rubro="", direccion=""):
+    nombre = str(nombre or "").strip()
+    if not nombre:
+        return False, "La razón social es obligatoria."
+    db = SessionLocal()
+    try:
+        provider = db.query(Proveedor).filter_by(id=id, activo=True).first()
+        if not provider:
+            return False, "Proveedor no encontrado o inactivo."
+        cuit = str(cuit or "").strip() or None
+        if cuit and db.query(Proveedor).filter(
+            Proveedor.cuit == cuit, Proveedor.id != id
+        ).first():
+            return False, "Ese CUIT ya pertenece a otro proveedor."
+        provider.nombre = nombre
+        provider.cuit = cuit
+        provider.contacto = str(contacto or "").strip()
+        provider.telefono = str(telefono or "").strip()
+        provider.email = str(email or "").strip()
+        provider.rubro = str(rubro or "").strip()
+        provider.direccion = str(direccion or "").strip()
+        db.commit()
+        return True, "Proveedor actualizado correctamente."
+    except Exception as error:
+        db.rollback()
+        return False, f"No se pudo actualizar el proveedor: {error}"
+    finally:
+        db.close()
+
+
 def eliminar_proveedor(id):
-    db = get_db()
+    db = SessionLocal()
     try:
-        # SQLAlchemy get() tradicional
-        proveedor = db.query(Proveedor).get(id)
-        if not proveedor:
-            return False, "Proveedor no encontrado"
-
-        proveedor.activo = False
+        provider = db.query(Proveedor).filter_by(id=id, activo=True).first()
+        if not provider:
+            return False, "Proveedor no encontrado o inactivo."
+        provider.activo = False
         db.commit()
-        return True, "Proveedor eliminado con éxito"
-    except Exception as e:
+        return True, "Proveedor desactivado."
+    except Exception as error:
         db.rollback()
-        print(f"Error al eliminar proveedor: {e}")
-        return False, f"Error al eliminar: {e}"
+        return False, f"No se pudo desactivar el proveedor: {error}"
     finally:
         db.close()

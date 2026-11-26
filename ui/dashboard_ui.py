@@ -1,237 +1,118 @@
 import tkinter as tk
 from tkinter import ttk
 
-from routes.articulos import listar_articulos
-from routes.ventas import listar_ventas
-from routes.compras import listar_compras
+from routes.dashboard import obtener_resumen_diario
+from ui.layout import ScrollableFrame, fit_tree_columns
 
 
-# =========================================
-# COLORES Y ESTILOS
-# =========================================
-
-COLOR_FONDO = "#0f172a"
-COLOR_PANEL = "#1e293b"
-COLOR_CARD = "#334155"
-
-COLOR_TEXTO = "#f8fafc"
-COLOR_SECUNDARIO = "#94a3b8"
-
-COLOR_AZUL = "#3b82f6"
-COLOR_VERDE = "#22c55e"
-COLOR_NARANJA = "#f59e0b"
-
-FUENTE = "Segoe UI"
+BG = "#0f0f0f"
+PANEL = "#1a1a1a"
+TEXT = "#f5f5f5"
+MUTED = "#9e9e9e"
+ORANGE = "#ff7b00"
+FONT = "Segoe UI"
 
 
-# =========================================
-# EFECTO HOVER
-# =========================================
+class DashboardFrame(tk.Frame):
+    def __init__(self, parent, usuario=None):
+        super().__init__(parent, bg=BG)
+        self.usuario = usuario
+        self._render()
 
-def hover_boton(btn, color_normal, color_hover):
-    btn.bind("<Enter>", lambda e: btn.config(bg=color_hover))
-    btn.bind("<Leave>", lambda e: btn.config(bg=color_normal))
+    def _render(self):
+        for child in self.winfo_children():
+            child.destroy()
 
+        data = obtener_resumen_diario()
+        header = tk.Frame(self, bg=PANEL, height=72)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        tk.Label(
+            header, text="Panel Principal", bg=PANEL, fg=TEXT,
+            font=(FONT, 21, "bold"),
+        ).pack(side="left", padx=24)
+        tk.Label(
+            header, text="Resumen operativo de hoy",
+            bg=PANEL, fg=MUTED, font=(FONT, 10),
+        ).pack(side="right", padx=24)
 
-# =========================================
-# TARJETAS KPI
-# =========================================
+        scroll = ScrollableFrame(self, bg=BG)
+        scroll.pack(fill="both", expand=True, padx=12, pady=8)
+        content = scroll.content
+        for column in range(4):
+            content.columnconfigure(column, weight=1, uniform="kpi")
 
-def crear_card(parent, titulo, valor, color):
+        cards = (
+            ("Ventas del día", f"${data['ventas_dia']:,.2f}", ORANGE),
+            ("Cantidad de ventas", str(data["cantidad_ventas"]), "#55c78a"),
+            ("Artículos con stock bajo", str(data["stock_bajo"]), "#ef6b45"),
+            ("Valor del inventario", f"${data['valor_inventario']:,.2f}", TEXT),
+        )
+        for index, (title, value, color) in enumerate(cards):
+            card = tk.Frame(content, bg=PANEL, padx=16, pady=14)
+            card.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 8, 8), pady=(0, 18))
+            tk.Label(card, text=title, bg=PANEL, fg=MUTED, font=(FONT, 10)).pack(anchor="w")
+            tk.Label(card, text=value, bg=PANEL, fg=color, font=(FONT, 19, "bold")).pack(
+                anchor="w", pady=(8, 0)
+            )
 
-    card = tk.Frame(
-        parent,
-        bg=COLOR_CARD,
-        width=220,
-        height=120,
-        bd=0,
-        highlightthickness=0
-    )
+        actions = tk.Frame(content, bg=BG)
+        actions.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(0, 18))
+        tk.Label(
+            actions, text="Accesos rápidos", bg=BG, fg=TEXT,
+            font=(FONT, 12, "bold"),
+        ).pack(side="left", padx=(0, 12))
+        callbacks = getattr(self.master, "menu_actions", {})
+        for label, key in (
+            ("Nueva venta", "ventas"),
+            ("Nuevo artículo", "articulos"),
+            ("Registrar compra", "compras"),
+        ):
+            tk.Button(
+                actions, text=label, command=callbacks.get(key, lambda: None),
+                bg=ORANGE, fg="white", activebackground="#ff9500",
+                relief="flat", padx=15, pady=8, cursor="hand2",
+            ).pack(side="left", padx=5)
 
-    card.pack_propagate(False)
-
-    tk.Label(
-        card,
-        text=titulo,
-        bg=COLOR_CARD,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 11)
-    ).pack(anchor="w", padx=18, pady=(18, 5))
-
-    tk.Label(
-        card,
-        text=valor,
-        bg=COLOR_CARD,
-        fg=color,
-        font=(FUENTE, 24, "bold")
-    ).pack(anchor="w", padx=18)
-
-    return card
-
-
-# =========================================
-# DASHBOARD
-# =========================================
-
-def abrir_dashboard(usuario):
-
-    # =========================
-    # DATOS
-    # =========================
-
-    total_articulos = len(listar_articulos())
-    total_ventas = len(listar_ventas())
-    total_compras = len(listar_compras())
-
-    # =========================
-    # VENTANA
-    # =========================
-
-    ventana = tk.Tk()
-
-    ventana.title("Dashboard")
-    ventana.geometry("1000x600")
-    ventana.configure(bg=COLOR_FONDO)
-
-    # Evita que se pueda hacer demasiado pequeña
-    ventana.minsize(900, 550)
-
-    # =========================
-    # HEADER
-    # =========================
-
-    header = tk.Frame(
-        ventana,
-        bg=COLOR_PANEL,
-        height=90
-    )
-
-    header.pack(fill="x")
-
-    tk.Label(
-        header,
-        text="📊 Dashboard",
-        bg=COLOR_PANEL,
-        fg=COLOR_TEXTO,
-        font=(FUENTE, 24, "bold")
-    ).pack(side="left", padx=30, pady=20)
-
-    tk.Label(
-        header,
-        text=f"Bienvenido, {usuario.nombre}",
-        bg=COLOR_PANEL,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 12)
-    ).pack(side="right", padx=30)
-
-    # =========================
-    # CONTENEDOR PRINCIPAL
-    # =========================
-
-    contenido = tk.Frame(
-        ventana,
-        bg=COLOR_FONDO
-    )
-
-    contenido.pack(fill="both", expand=True, padx=30, pady=30)
-
-    # =========================
-    # TITULO SECCION
-    # =========================
-
-    tk.Label(
-        contenido,
-        text="Resumen general del sistema",
-        bg=COLOR_FONDO,
-        fg=COLOR_TEXTO,
-        font=(FUENTE, 18, "bold")
-    ).pack(anchor="w", pady=(0, 20))
-
-    # =========================
-    # GRID DE TARJETAS
-    # =========================
-
-    grid = tk.Frame(
-        contenido,
-        bg=COLOR_FONDO
-    )
-
-    grid.pack()
-
-    crear_card(
-        grid,
-        "📦 Artículos",
-        total_articulos,
-        COLOR_AZUL
-    ).grid(row=0, column=0, padx=15, pady=15)
-
-    crear_card(
-        grid,
-        "💰 Ventas",
-        total_ventas,
-        COLOR_VERDE
-    ).grid(row=0, column=1, padx=15, pady=15)
-
-    crear_card(
-        grid,
-        "🧾 Compras",
-        total_compras,
-        COLOR_NARANJA
-    ).grid(row=0, column=2, padx=15, pady=15)
-
-    # =========================
-    # PANEL INFERIOR
-    # =========================
-
-    panel_info = tk.Frame(
-        contenido,
-        bg=COLOR_PANEL,
-        height=180
-    )
-
-    panel_info.pack(fill="x", pady=40)
-
-    tk.Label(
-        panel_info,
-        text="📌 Información del sistema",
-        bg=COLOR_PANEL,
-        fg=COLOR_TEXTO,
-        font=(FUENTE, 14, "bold")
-    ).pack(anchor="w", padx=20, pady=(20, 10))
-
-    info_texto = (
-        "• Gestioná artículos, ventas y compras desde un solo lugar.\n\n"
-        "• Visualizá estadísticas rápidas del negocio.\n\n"
-        "• Sistema moderno desarrollado con Python + Tkinter."
-    )
-
-    tk.Label(
-        panel_info,
-        text=info_texto,
-        justify="left",
-        bg=COLOR_PANEL,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 11)
-    ).pack(anchor="w", padx=20)
-
-    # =========================
-    # FOOTER
-    # =========================
-
-    footer = tk.Frame(
-        ventana,
-        bg=COLOR_PANEL,
-        height=40
-    )
-
-    footer.pack(fill="x")
-
-    tk.Label(
-        footer,
-        text="Sistema de Gestión • Python",
-        bg=COLOR_PANEL,
-        fg=COLOR_SECUNDARIO,
-        font=(FUENTE, 9)
-    ).pack(pady=10)
-
-    ventana.mainloop()
+        tk.Label(
+            content, text="Últimos movimientos del día",
+            bg=BG, fg=TEXT, font=(FONT, 12, "bold"),
+        ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(0, 7))
+        style = ttk.Style(self)
+        style.configure(
+            "Punihard.Treeview", background=PANEL, fieldbackground=PANEL,
+            foreground=TEXT, rowheight=24, font=(FONT, 10),
+        )
+        style.configure(
+            "Punihard.Treeview.Heading", background="#292929",
+            foreground=TEXT, relief="flat", font=(FONT, 10, "bold"),
+        )
+        tree = ttk.Treeview(
+            content, columns=("hora", "tipo", "articulo", "cantidad"),
+            show="headings", style="Punihard.Treeview", height=12,
+        )
+        for column, title, width, anchor in (
+            ("hora", "Hora", 150, "w"),
+            ("tipo", "Movimiento", 190, "w"),
+            ("articulo", "Artículo", 400, "w"),
+            ("cantidad", "Cantidad", 140, "e"),
+        ):
+            tree.heading(column, text=title)
+            tree.column(column, width=width, anchor=anchor)
+        tree.grid(row=3, column=0, columnspan=4, sticky="nsew")
+        fit_tree_columns(tree, {"hora": 0.9, "tipo": 1.2, "articulo": 3, "cantidad": 1})
+        content.rowconfigure(3, weight=1)
+        for index, movement in enumerate(data["movimientos"]):
+            sign = "+" if movement["cantidad"] > 0 else ""
+            tree.insert(
+                "", "end",
+                values=(
+                    movement["fecha"].strftime("%H:%M"),
+                    movement["tipo"].replace("_", " ").title(),
+                    movement["articulo"],
+                    f"{sign}{movement['cantidad']:g}",
+                ),
+                tags=("even" if index % 2 == 0 else "odd",),
+            )
+        tree.tag_configure("even", background="#202020")
+        tree.tag_configure("odd", background=PANEL)

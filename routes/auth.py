@@ -45,32 +45,47 @@ def logout_usuario():
 # =========================
 # CREAR USUARIO
 # =========================
-def crear_usuario(nombre, username, email, password, rol="empleado"):
+def crear_usuario(nombre, username, email, password, rol="empleado", creado_por_id=None):
     """
     Crea un usuario nuevo con password hasheada.
     """
 
+    nombre = str(nombre or "").strip()
+    username = str(username or "").strip()
+    email = str(email or "").strip() or None
+    password = str(password or "")
+    rol = str(rol or "").strip().lower()
+    if rol == "empleado":
+        rol = "vendedor"
+    if not nombre or not username or not password:
+        return False, "Nombre, usuario y contraseña son obligatorios."
+    if rol not in {"admin", "vendedor"}:
+        return False, "Seleccioná Administrador o Vendedor."
+
     db: Session = SessionLocal()
-
-    existente = db.query(Usuario).filter_by(username=username).first()
-    if existente:
+    try:
+        actor = db.query(Usuario).filter_by(id=creado_por_id, activo=True).first()
+        if not actor or actor.rol != "admin":
+            return False, "Solo un Administrador puede crear usuarios."
+        existente = db.query(Usuario).filter_by(username=username).first()
+        if existente:
+            return False, "El usuario ya existe."
+        nuevo = Usuario(
+            nombre=nombre,
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password),
+            rol=rol,
+            activo=True,
+        )
+        db.add(nuevo)
+        db.commit()
+        return True, "Usuario creado correctamente."
+    except Exception as error:
+        db.rollback()
+        return False, f"No se pudo crear el usuario: {error}"
+    finally:
         db.close()
-        return False, "El usuario ya existe"
-
-    nuevo = Usuario(
-        nombre=nombre,
-        username=username,
-        email=email,
-        password_hash=generate_password_hash(password),
-        rol=rol,
-        activo=True
-    )
-
-    db.add(nuevo)
-    db.commit()
-    db.close()
-
-    return True, "Usuario creado correctamente"
 
 
 # =========================

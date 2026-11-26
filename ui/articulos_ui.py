@@ -1,414 +1,376 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 from routes.articulos import (
-    listar_articulos,
     crear_articulo,
-    eliminar_articulo
+    editar_articulo,
+    eliminar_articulo,
+    listar_articulos,
+    listar_categorias,
 )
+from ui.layout import ScrollableFrame, fit_tree_columns
 
 
-# ======================================================
-# COLORES - DARK ORANGE UI
-# ======================================================
+BG = "#0f0f0f"
+PANEL = "#1a1a1a"
+INPUT = "#262626"
+TEXT = "#f5f5f5"
+MUTED = "#9e9e9e"
+ORANGE = "#ff7b00"
+FONT = "Segoe UI"
 
-COLOR_FONDO = "#0f0f0f"
-COLOR_PANEL = "#1a1a1a"
-COLOR_CARD = "#202020"
-
-COLOR_NARANJA = "#ff7b00"
-COLOR_NARANJA_HOVER = "#ff9500"
-
-COLOR_ROJO = "#ef4444"
-COLOR_ROJO_HOVER = "#dc2626"
-
-COLOR_TEXTO = "#f5f5f5"
-COLOR_SECUNDARIO = "#9e9e9e"
-
-COLOR_INPUT = "#262626"
-COLOR_BORDE = "#2f2f2f"
-
-FUENTE = "Segoe UI"
-
-
-# ======================================================
-# HOVER BOTONES
-# ======================================================
-
-def hover(btn, normal, hover_color):
-
-    btn.bind(
-        "<Enter>",
-        lambda e: btn.config(bg=hover_color)
-    )
-
-    btn.bind(
-        "<Leave>",
-        lambda e: btn.config(bg=normal)
-    )
-
-
-# ======================================================
-# FRAME ARTICULOS
-# ======================================================
 
 class ArticulosFrame(tk.Frame):
-
-    def __init__(self, parent):
-
-        super().__init__(parent, bg=COLOR_FONDO)
-
-        # ==================================================
-        # TITULO
-        # ==================================================
-
-        header = tk.Frame(
-            self,
-            bg=COLOR_PANEL,
-            height=90
+    def __init__(self, parent, usuario=None):
+        super().__init__(parent, bg=BG)
+        self.usuario = usuario
+        self.usuario_id = getattr(usuario, "id", None)
+        self.is_admin = getattr(usuario, "rol", None) == "admin"
+        self.selected_id = None
+        self.selected_article = None
+        self.categories = {}
+        self.search_job = None
+        style = ttk.Style(parent)
+        style.configure(
+            "Punihard.Treeview", background=PANEL, fieldbackground=PANEL,
+            foreground=TEXT, rowheight=24, font=(FONT, 10),
         )
+        style.configure(
+            "Punihard.Treeview.Heading", background="#292929",
+            foreground=TEXT, relief="flat", font=(FONT, 10, "bold"),
+        )
+        style.map("Punihard.Treeview", background=[("selected", "#78400f")])
+        self._build()
+        self._load_categories()
+        self.refrescar()
 
+    def _build(self):
+        header = tk.Frame(self, bg=PANEL, height=68)
         header.pack(fill="x")
         header.pack_propagate(False)
-
         tk.Label(
-            header,
-            text="📦 Gestión de Artículos",
-            bg=COLOR_PANEL,
-            fg=COLOR_TEXTO,
-            font=(FUENTE, 22, "bold")
-        ).pack(side="left", padx=30, pady=25)
+            header, text="Inventario de Artículos", bg=PANEL, fg=TEXT,
+            font=(FONT, 21, "bold"),
+        ).pack(side="left", padx=24)
 
-        # ==================================================
-        # CONTENIDO
-        # ==================================================
-
-        contenido = tk.Frame(
-            self,
-            bg=COLOR_FONDO
+        scroll = ScrollableFrame(self, bg=BG)
+        scroll.pack(fill="both", expand=True, padx=12, pady=8)
+        content = scroll.content
+        searchbar = tk.Frame(content, bg=BG)
+        searchbar.pack(fill="x", pady=(0, 9))
+        tk.Label(searchbar, text="Buscar", bg=BG, fg=MUTED).pack(side="left")
+        self.search_var = tk.StringVar()
+        search = tk.Entry(
+            searchbar, textvariable=self.search_var, bg=INPUT, fg=TEXT,
+            insertbackground=TEXT, relief="flat",
         )
+        search.pack(side="left", fill="x", expand=True, padx=8, ipady=6)
+        self.search_var.trace_add("write", self._schedule_refresh)
+        tk.Label(searchbar, text="Categoría", bg=BG, fg=MUTED).pack(side="left")
+        self.category_filter = ttk.Combobox(searchbar, state="readonly", width=18)
+        self.category_filter.pack(side="left", padx=7)
+        self.category_filter.bind("<<ComboboxSelected>>", lambda _event: self.refrescar())
+        self.low_stock_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            searchbar, text="Stock bajo", variable=self.low_stock_var,
+            command=self.refrescar, bg=BG, fg=TEXT, selectcolor=INPUT,
+            activebackground=BG,
+        ).pack(side="left", padx=5)
 
-        contenido.pack(fill="both", expand=True, padx=25, pady=25)
-
-        # ==================================================
-        # PANEL LISTA
-        # ==================================================
-
-        panel_lista = tk.Frame(
-            contenido,
-            bg=COLOR_PANEL,
-            highlightbackground=COLOR_BORDE,
-            highlightthickness=1
+        table_panel = tk.Frame(content, bg=PANEL)
+        table_panel.pack(fill="both", expand=True, pady=(0, 10))
+        columns = ["codigo", "nombre", "categoria", "unidad"]
+        specs = [
+            ("codigo", "SKU / Código", 135, "w"),
+            ("nombre", "Artículo", 260, "w"),
+            ("categoria", "Categoría", 145, "w"),
+            ("unidad", "Unidad", 85, "w"),
+        ]
+        if self.is_admin:
+            columns.extend(("costo", "margen", "precio"))
+            specs.extend((
+                ("costo", "Costo", 105, "e"),
+                ("margen", "Margen %", 90, "e"),
+                ("precio", "Venta", 105, "e"),
+            ))
+        columns.extend(("stock", "minimo", "accion"))
+        specs.extend((
+            ("stock", "Stock", 95, "e"),
+            ("minimo", "Mínimo", 90, "e"),
+            ("accion", "Acción", 78, "center"),
+        ))
+        self.tree = ttk.Treeview(
+            table_panel, columns=columns, show="headings", style="Punihard.Treeview",
         )
+        for column, title, width, anchor in specs:
+            self.tree.heading(column, text=title)
+            self.tree.column(column, width=width, anchor=anchor)
+        self.tree.pack(side="left", fill="both", expand=True, padx=(8, 0), pady=8)
+        fit_tree_columns(self.tree, {
+            "codigo": 1.0, "nombre": 2.2, "categoria": 1.3, "unidad": 0.8,
+            **({"costo": 0.9, "margen": 0.8, "precio": 0.9} if self.is_admin else {}),
+            "stock": 0.8, "minimo": 0.8, "accion": 0.8,
+        })
+        scrollbar = ttk.Scrollbar(table_panel, orient="vertical", command=self.tree.yview)
+        scrollbar.pack(side="right", fill="y", padx=(0, 6), pady=8)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        self.tree.bind("<Button-1>", self._table_click)
+        self.tree.bind("<Double-1>", self._table_double_click)
 
-        panel_lista.pack(
-            side="left",
-            fill="both",
-            expand=True,
-            padx=(0, 15)
+        form = tk.LabelFrame(
+            content, text="Artículo — alta / edición", bg=PANEL,
+            fg=TEXT, font=(FONT, 10, "bold"), padx=8, pady=5,
         )
-
-        tk.Label(
-            panel_lista,
-            text="📋 Listado de artículos",
-            bg=COLOR_PANEL,
-            fg=COLOR_TEXTO,
-            font=(FUENTE, 14, "bold")
-        ).pack(anchor="w", padx=20, pady=20)
-
-        self.frame_lista = tk.Frame(
-            panel_lista,
-            bg=COLOR_PANEL
+        form.pack(fill="x")
+        for column in range(6):
+            form.columnconfigure(column, weight=1)
+        self.vars = {
+            "codigo": tk.StringVar(),
+            "nombre": tk.StringVar(),
+            "categoria": tk.StringVar(),
+            "unidad": tk.StringVar(value="Unidad"),
+            "costo": tk.StringVar(value="0"),
+            "margen": tk.StringVar(value="0"),
+            "precio": tk.StringVar(value="0"),
+            "stock": tk.StringVar(value="0"),
+            "minimo": tk.StringVar(value="0"),
+        }
+        inputs = (
+            ("Código / SKU", "codigo", 0, 0),
+            ("Nombre", "nombre", 0, 2),
+            ("Categoría", "categoria", 0, 4),
+            ("Unidad", "unidad", 1, 0),
+            ("Stock inicial", "stock", 1, 2),
+            ("Stock mínimo", "minimo", 1, 4),
         )
+        for label, key, row, column in inputs:
+            self._field(form, label, key, row, column)
+        self.cost_widgets = []
+        if self.is_admin:
+            for label, key, row, column in (
+                ("Costo", "costo", 2, 0),
+                ("Margen %", "margen", 2, 2),
+                ("Precio de venta", "precio", 2, 4),
+            ):
+                self._field(form, label, key, row, column)
+                self.cost_widgets.append(self.inputs[key])
+            self.vars["costo"].trace_add("write", self._calcular_precio)
+            self.vars["margen"].trace_add("write", self._calcular_precio)
+        else:
+            self._field(form, "Precio de venta", "precio", 2, 0)
+        self.buttons = tk.Frame(form, bg=PANEL)
+        self.buttons.grid(row=3, column=0, columnspan=6, sticky="e", pady=(4, 0))
+        tk.Button(
+            self.buttons, text="Limpiar", command=self.limpiar,
+            bg="#353535", fg=TEXT, relief="flat", padx=12, pady=6,
+        ).pack(side="left", padx=4)
+        tk.Button(
+            self.buttons, text="Guardar artículo", command=self.guardar,
+            bg=ORANGE, fg="white", activebackground="#ff9500",
+            relief="flat", padx=16, pady=6,
+        ).pack(side="left", padx=4)
+        tk.Button(
+            self.buttons, text="Desactivar seleccionado", command=self.desactivar,
+            bg="#8b2525", fg="white", relief="flat", padx=12, pady=6,
+        ).pack(side="left", padx=4)
 
-        self.frame_lista.pack(
-            fill="both",
-            expand=True,
-            padx=15,
-            pady=(0, 15)
-        )
+    def _field(self, parent, label, key, row, column):
+        cell = tk.Frame(parent, bg=PANEL)
+        cell.grid(row=row, column=column, columnspan=2, sticky="ew", padx=3, pady=1)
+        tk.Label(cell, text=label, bg=PANEL, fg=MUTED, font=(FONT, 9)).pack(anchor="w")
+        if key == "categoria":
+            widget = ttk.Combobox(
+                cell, textvariable=self.vars[key], state="readonly",
+            )
+        elif key == "unidad":
+            widget = ttk.Combobox(
+                cell, textvariable=self.vars[key], state="readonly",
+                values=("Unidad", "Metro", "Kilo", "Caja", "Litro"),
+            )
+        else:
+            widget = tk.Entry(
+                cell, textvariable=self.vars[key], bg=INPUT, fg=TEXT,
+                insertbackground=TEXT, relief="flat",
+            )
+        widget.pack(fill="x", ipady=2)
+        self.inputs = getattr(self, "inputs", {})
+        self.inputs[key] = widget
 
-        # ==================================================
-        # PANEL FORMULARIO
-        # ==================================================
+    def _load_categories(self):
+        categories = listar_categorias()
+        self.categories = {category.nombre: category.id for category in categories}
+        names = ["Sin categoría", *self.categories]
+        self.inputs["categoria"].configure(values=names)
+        self.category_filter.configure(values=["Todas", *self.categories])
+        self.category_filter.set("Todas")
 
-        panel_form = tk.Frame(
-            contenido,
-            bg=COLOR_PANEL,
-            width=350,
-            highlightbackground=COLOR_BORDE,
-            highlightthickness=1
-        )
-
-        panel_form.pack(side="right", fill="y")
-        panel_form.pack_propagate(False)
-
-        tk.Label(
-            panel_form,
-            text="➕ Nuevo artículo",
-            bg=COLOR_PANEL,
-            fg=COLOR_TEXTO,
-            font=(FUENTE, 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(20, 25))
-
-        # ==================================================
-        # CÓDIGO
-        # ==================================================
-
-        tk.Label(
-            panel_form,
-            text="Código",
-            bg=COLOR_PANEL,
-            fg=COLOR_SECUNDARIO,
-            font=(FUENTE, 10)
-        ).pack(anchor="w", padx=20)
-
-        self.entry_codigo = tk.Entry(
-            panel_form,
-            bg=COLOR_INPUT,
-            fg="white",
-            insertbackground="white",
-            relief="flat",
-            font=(FUENTE, 11)
-        )
-
-        self.entry_codigo.pack(
-            fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
-        )
-
-        # ==================================================
-        # NOMBRE
-        # ==================================================
-
-        tk.Label(
-            panel_form,
-            text="Nombre",
-            bg=COLOR_PANEL,
-            fg=COLOR_SECUNDARIO,
-            font=(FUENTE, 10)
-        ).pack(anchor="w", padx=20)
-
-        self.entry_nombre = tk.Entry(
-            panel_form,
-            bg=COLOR_INPUT,
-            fg="white",
-            insertbackground="white",
-            relief="flat",
-            font=(FUENTE, 11)
-        )
-
-        self.entry_nombre.pack(
-            fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
-        )
-
-        # ==================================================
-        # STOCK
-        # ==================================================
-
-        tk.Label(
-            panel_form,
-            text="Stock",
-            bg=COLOR_PANEL,
-            fg=COLOR_SECUNDARIO,
-            font=(FUENTE, 10)
-        ).pack(anchor="w", padx=20)
-
-        self.entry_stock = tk.Entry(
-            panel_form,
-            bg=COLOR_INPUT,
-            fg="white",
-            insertbackground="white",
-            relief="flat",
-            font=(FUENTE, 11)
-        )
-
-        self.entry_stock.pack(
-            fill="x",
-            padx=20,
-            pady=(8, 30),
-            ipady=10
-        )
-
-        # ==================================================
-        # BOTON CREAR
-        # ==================================================
-
-        btn_crear = tk.Button(
-            panel_form,
-            text="➕ Crear artículo",
-            command=self.guardar,
-            bg=COLOR_NARANJA,
-            fg="white",
-            activebackground=COLOR_NARANJA_HOVER,
-            activeforeground="white",
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            font=(FUENTE, 11, "bold"),
-            pady=12
-        )
-
-        btn_crear.pack(
-            fill="x",
-            padx=20
-        )
-
-        hover(
-            btn_crear,
-            COLOR_NARANJA,
-            COLOR_NARANJA_HOVER
-        )
-
-        # ==================================================
-        # CARGAR LISTA
-        # ==================================================
-
-        self.refrescar()
-
-    # ======================================================
-    # REFRESCAR LISTA
-    # ======================================================
+    def _schedule_refresh(self, *_):
+        if self.search_job:
+            self.after_cancel(self.search_job)
+        self.search_job = self.after(180, self.refrescar)
 
     def refrescar(self):
+        if not hasattr(self, "tree"):
+            return
+        category_id = self.categories.get(self.category_filter.get())
+        articles = listar_articulos(
+            texto=self.search_var.get(),
+            categoria_id=category_id,
+            bajo_stock=self.low_stock_var.get(),
+        )
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+        for index, article in enumerate(articles):
+            values = [
+                article.codigo or "",
+                article.nombre,
+                article.categoria.nombre if article.categoria else "Sin categoría",
+                article.unidad,
+            ]
+            if self.is_admin:
+                values.extend((
+                    f"${article.precio_compra:,.2f}",
+                    f"{article.margen_porcentaje:g}%",
+                    f"${article.precio_venta:,.2f}",
+                ))
+            values.extend((
+                f"{article.stock_actual:g}",
+                f"{article.stock_minimo:g}",
+                "Editar",
+            ))
+            self.tree.insert(
+                "", "end", iid=str(article.id), values=values,
+                tags=("low" if article.stock_actual <= article.stock_minimo else
+                      "even" if index % 2 == 0 else "odd",),
+            )
+        self.tree.tag_configure("low", foreground="#ff8b67")
+        self.tree.tag_configure("even", background="#202020")
+        self.tree.tag_configure("odd", background=PANEL)
 
-        for widget in self.frame_lista.winfo_children():
-            widget.destroy()
+    def _table_click(self, event):
+        if self.tree.identify_region(event.x, event.y) != "cell":
+            return
+        if self.tree.identify_column(event.x) == f"#{len(self.tree['columns'])}":
+            row = self.tree.identify_row(event.y)
+            if row:
+                self.seleccionar(int(row))
 
-        articulos = listar_articulos()
+    def _table_double_click(self, event):
+        row = self.tree.identify_row(event.y)
+        if row:
+            self.seleccionar(int(row))
 
-        # ==================================================
-        # NO HAY ARTICULOS
-        # ==================================================
+    def seleccionar(self, article_id):
+        article = next((item for item in listar_articulos() if item.id == article_id), None)
+        if not article:
+            messagebox.showerror("Artículo", "El artículo ya no está disponible.")
+            return
+        self.selected_id = article.id
+        self.selected_article = article
+        values = {
+            "codigo": article.codigo or "",
+            "nombre": article.nombre,
+            "categoria": article.categoria.nombre if article.categoria else "Sin categoría",
+            "unidad": article.unidad,
+            "costo": str(article.precio_compra or 0),
+            "margen": str(article.margen_porcentaje or 0),
+            "precio": str(article.precio_venta or 0),
+            "stock": str(article.stock_actual or 0),
+            "minimo": str(article.stock_minimo or 0),
+        }
+        for key, value in values.items():
+            self.vars[key].set(value)
+        self.inputs["stock"].configure(state="disabled")
+        self.inputs["stock"].master.winfo_children()[0].configure(text="Stock actual (solo lectura)")
 
-        if not articulos:
-
-            tk.Label(
-                self.frame_lista,
-                text="No hay artículos registrados",
-                bg=COLOR_PANEL,
-                fg=COLOR_SECUNDARIO,
-                font=(FUENTE, 11)
-            ).pack(pady=20)
-
+    def _calcular_precio(self, *_):
+        try:
+            cost = float(self.vars["costo"].get().replace(",", "."))
+            margin = float(self.vars["margen"].get().replace(",", "."))
+            if cost >= 0 and margin >= 0:
+                self.vars["precio"].set(f"{cost * (1 + margin / 100):.2f}")
+        except ValueError:
             return
 
-        # ==================================================
-        # LISTADO
-        # ==================================================
-
-        for a in articulos:
-
-            fila = tk.Frame(
-                self.frame_lista,
-                bg=COLOR_CARD,
-                highlightbackground=COLOR_BORDE,
-                highlightthickness=1
+    def guardar(self):
+        try:
+            category_id = self.categories.get(self.vars["categoria"].get())
+            cost = float(self.vars["costo"].get().replace(",", ".") or 0) if self.is_admin else (
+                self.selected_article.precio_compra if self.selected_article else 0
             )
-
-            fila.pack(
-                fill="x",
-                pady=6,
-                ipady=10
+            margin = float(self.vars["margen"].get().replace(",", ".") or 0) if self.is_admin else (
+                self.selected_article.margen_porcentaje if self.selected_article else 0
             )
-
-            info = (
-                f"📦 {a.codigo}   |   "
-                f"{a.nombre}   |   "
-                f"Stock: {a.stock_actual}"
-            )
-
-            tk.Label(
-                fila,
-                text=info,
-                bg=COLOR_CARD,
-                fg=COLOR_TEXTO,
-                anchor="w",
-                font=(FUENTE, 10)
-            ).pack(
-                side="left",
-                padx=15,
-                expand=True,
-                fill="x"
-            )
-
-            # ==================================================
-            # BOTON ELIMINAR
-            # ==================================================
-
-            btn_delete = tk.Button(
-                fila,
-                text="Eliminar",
-                command=lambda id=a.id: self.eliminar_y_refrescar(id),
-                bg=COLOR_ROJO,
-                fg="white",
-                activebackground=COLOR_ROJO_HOVER,
-                activeforeground="white",
-                relief="flat",
-                bd=0,
-                cursor="hand2",
-                font=(FUENTE, 9, "bold"),
-                padx=15,
-                pady=6
-            )
-
-            btn_delete.pack(
-                side="right",
-                padx=10
-            )
-
-            hover(
-                btn_delete,
-                COLOR_ROJO,
-                COLOR_ROJO_HOVER
-            )
-
-    # ======================================================
-    # ELIMINAR
-    # ======================================================
-
-    def eliminar_y_refrescar(self, id):
-
-        eliminar_articulo(id)
-
-        messagebox.showinfo(
-            "OK",
-            "Artículo eliminado"
+            price = float(self.vars["precio"].get().replace(",", ".") or 0)
+            stock = float(self.vars["stock"].get().replace(",", ".") or 0)
+            minimum = float(self.vars["minimo"].get().replace(",", ".") or 0)
+        except ValueError:
+            messagebox.showerror("Datos inválidos", "Los precios y cantidades deben ser números.")
+            return
+        args = (
+            self.vars["nombre"].get(),
+            self.selected_article.descripcion if self.selected_article else "",
+            category_id,
+            cost,
+            price,
+            minimum,
+            self.vars["codigo"].get(),
+            self.vars["unidad"].get(),
+            margin,
         )
-
+        if self.selected_id:
+            ok, message = editar_articulo(
+                self.selected_id, *args, usuario_id=self.usuario_id
+            )
+        else:
+            ok, message = crear_articulo(
+                self.vars["codigo"].get(),
+                self.vars["nombre"].get(),
+                "",
+                category_id,
+                cost,
+                price,
+                stock,
+                minimum,
+                self.vars["unidad"].get(),
+                margin,
+                self.usuario_id,
+            )
+        if not ok:
+            messagebox.showerror("No se pudo guardar", message)
+            return
+        messagebox.showinfo("Inventario", message)
+        self.limpiar()
         self.refrescar()
 
-    # ======================================================
-    # GUARDAR
-    # ======================================================
+    def limpiar(self):
+        self.selected_id = None
+        self.selected_article = None
+        for key, variable in self.vars.items():
+            variable.set("Unidad" if key == "unidad" else "0" if key in {
+                "costo", "margen", "precio", "stock", "minimo",
+            } else "")
+        self.inputs["stock"].configure(state="normal")
+        self.inputs["stock"].master.winfo_children()[0].configure(text="Stock inicial")
+        self.tree.selection_remove(self.tree.selection())
 
-    def guardar(self):
-
-        ok, msg = crear_articulo(
-            self.entry_codigo.get(),
-            self.entry_nombre.get(),
-            "",
-            1,
-            0,
-            0,
-            int(self.entry_stock.get() or 0),
-            0
-        )
-
-        messagebox.showinfo(
-            "Información",
-            msg
-        )
-
+    def desactivar(self):
+        article_id = self.selected_id
+        if not article_id:
+            selection = self.tree.selection()
+            article_id = int(selection[0]) if selection else None
+        if not article_id:
+            messagebox.showwarning("Inventario", "Seleccioná un artículo.")
+            return
+        if not messagebox.askyesno(
+            "Confirmar desactivación",
+            "El artículo dejará de aparecer en ventas y compras. ¿Continuar?",
+        ):
+            return
+        ok, message = eliminar_articulo(article_id)
         if ok:
-
-            self.entry_codigo.delete(0, "end")
-            self.entry_nombre.delete(0, "end")
-            self.entry_stock.delete(0, "end")
-
+            self.limpiar()
             self.refrescar()
+            messagebox.showinfo("Inventario", message)
+        else:
+            messagebox.showerror("Inventario", message)

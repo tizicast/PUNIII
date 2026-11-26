@@ -1,422 +1,295 @@
+import os
 import tkinter as tk
-from tkinter import messagebox
+from datetime import datetime
+from tkinter import filedialog, messagebox, ttk
 
-from routes.remitos import (
-    listar_remitos,
-    crear_remito,
-    firmar_remito
-)
-
-
-# ======================================================
-# COLORES - DARK ORANGE UI
-# ======================================================
-
-COLOR_FONDO = "#0f0f0f"
-COLOR_PANEL = "#1a1a1a"
-COLOR_CARD = "#202020"
-
-COLOR_NARANJA = "#ff7b00"
-COLOR_NARANJA_HOVER = "#ff9500"
-
-COLOR_AZUL = "#0288D1"
-COLOR_AZUL_HOVER = "#03a9f4"
-
-COLOR_TEXTO = "#f5f5f5"
-COLOR_SECUNDARIO = "#9e9e9e"
-
-COLOR_INPUT = "#262626"
-COLOR_BORDE = "#2f2f2f"
-
-FUENTE = "Segoe UI"
+from routes.articulos import listar_articulos
+from routes.remitos import crear_remito, listar_remitos, marcar_entregado
+from routes.ventas import listar_ventas
+from utils.pdf import generar_remito_pdf
+from ui.layout import ScrollableFrame, fit_tree_columns
 
 
-# ======================================================
-# HOVER BOTONES
-# ======================================================
+BG, PANEL, INPUT = "#0f0f0f", "#1a1a1a", "#262626"
+TEXT, MUTED, ORANGE = "#f5f5f5", "#9e9e9e", "#ff7b00"
+FONT = "Segoe UI"
 
-def hover(btn, normal, hover_color):
-
-    btn.bind(
-        "<Enter>",
-        lambda e: btn.config(bg=hover_color) if str(btn['state']) == 'normal' else None
-    )
-
-    btn.bind(
-        "<Leave>",
-        lambda e: btn.config(bg=normal) if str(btn['state']) == 'normal' else None
-    )
-
-
-# ======================================================
-# FRAME REMITOS
-# ======================================================
 
 class RemitosFrame(tk.Frame):
-
     def __init__(self, parent):
-
-        super().__init__(parent, bg=COLOR_FONDO)
-
-        # ==================================================
-        # TITULO
-        # ==================================================
-
-        header = tk.Frame(
-            self,
-            bg=COLOR_PANEL,
-            height=90
-        )
-
-        header.pack(fill="x")
-        header.pack_propagate(False)
-
-        tk.Label(
-            header,
-            text="📄 Gestión de Remitos",
-            bg=COLOR_PANEL,
-            fg=COLOR_TEXTO,
-            font=(FUENTE, 22, "bold")
-        ).pack(side="left", padx=30, pady=25)
-
-        # ==================================================
-        # CONTENIDO
-        # ==================================================
-
-        contenido = tk.Frame(
-            self,
-            bg=COLOR_FONDO
-        )
-
-        contenido.pack(fill="both", expand=True, padx=25, pady=25)
-
-        # ==================================================
-        # PANEL LISTA
-        # ==================================================
-
-        panel_lista = tk.Frame(
-            contenido,
-            bg=COLOR_PANEL,
-            highlightbackground=COLOR_BORDE,
-            highlightthickness=1
-        )
-
-        panel_lista.pack(
-            side="left",
-            fill="both",
-            expand=True,
-            padx=(0, 15)
-        )
-
-        tk.Label(
-            panel_lista,
-            text="📋 Listado de remitos",
-            bg=COLOR_PANEL,
-            fg=COLOR_TEXTO,
-            font=(FUENTE, 14, "bold")
-        ).pack(anchor="w", padx=20, pady=20)
-
-        self.frame_lista = tk.Frame(
-            panel_lista,
-            bg=COLOR_PANEL
-        )
-
-        self.frame_lista.pack(
-            fill="both",
-            expand=True,
-            padx=15,
-            pady=(0, 15)
-        )
-
-        # ==================================================
-        # PANEL FORMULARIO
-        # ==================================================
-
-        panel_form = tk.Frame(
-            contenido,
-            bg=COLOR_PANEL,
-            width=350,
-            highlightbackground=COLOR_BORDE,
-            highlightthickness=1
-        )
-
-        panel_form.pack(side="right", fill="y")
-        panel_form.pack_propagate(False)
-
-        tk.Label(
-            panel_form,
-            text="➕ Nuevo remito",
-            bg=COLOR_PANEL,
-            fg=COLOR_TEXTO,
-            font=(FUENTE, 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(20, 25))
-
-        # ==================================================
-        # NÚMERO DE REMITO
-        # ==================================================
-
-        tk.Label(
-            panel_form,
-            text="Número Remito",
-            bg=COLOR_PANEL,
-            fg=COLOR_SECUNDARIO,
-            font=(FUENTE, 10)
-        ).pack(anchor="w", padx=20)
-
-        self.entry_numero = tk.Entry(
-            panel_form,
-            bg=COLOR_INPUT,
-            fg="white",
-            insertbackground="white",
-            relief="flat",
-            font=(FUENTE, 11)
-        )
-
-        self.entry_numero.pack(
-            fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
-        )
-
-        # ==================================================
-        # ID VENTA
-        # ==================================================
-
-        tk.Label(
-            panel_form,
-            text="ID Venta",
-            bg=COLOR_PANEL,
-            fg=COLOR_SECUNDARIO,
-            font=(FUENTE, 10)
-        ).pack(anchor="w", padx=20)
-
-        self.entry_venta = tk.Entry(
-            panel_form,
-            bg=COLOR_INPUT,
-            fg="white",
-            insertbackground="white",
-            relief="flat",
-            font=(FUENTE, 11)
-        )
-
-        self.entry_venta.pack(
-            fill="x",
-            padx=20,
-            pady=(8, 18),
-            ipady=10
-        )
-
-        # ==================================================
-        # OBSERVACIONES
-        # ==================================================
-
-        tk.Label(
-            panel_form,
-            text="Observaciones",
-            bg=COLOR_PANEL,
-            fg=COLOR_SECUNDARIO,
-            font=(FUENTE, 10)
-        ).pack(anchor="w", padx=20)
-
-        self.entry_obs = tk.Entry(
-            panel_form,
-            bg=COLOR_INPUT,
-            fg="white",
-            insertbackground="white",
-            relief="flat",
-            font=(FUENTE, 11)
-        )
-
-        self.entry_obs.pack(
-            fill="x",
-            padx=20,
-            pady=(8, 30),
-            ipady=10
-        )
-
-        # ==================================================
-        # BOTON CREAR
-        # ==================================================
-
-        btn_crear = tk.Button(
-            panel_form,
-            text="➕ Registrar Remito",
-            command=self.guardar,
-            bg=COLOR_NARANJA,
-            fg="white",
-            activebackground=COLOR_NARANJA_HOVER,
-            activeforeground="white",
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            font=(FUENTE, 11, "bold"),
-            pady=12
-        )
-
-        btn_crear.pack(
-            fill="x",
-            padx=20
-        )
-
-        hover(
-            btn_crear,
-            COLOR_NARANJA,
-            COLOR_NARANJA_HOVER
-        )
-
-        # ==================================================
-        # CARGAR LISTA
-        # ==================================================
-
+        super().__init__(parent, bg=BG)
+        style = ttk.Style(parent)
+        style.configure("Punihard.Treeview", background=PANEL, fieldbackground=PANEL,
+                        foreground=TEXT, rowheight=24, font=(FONT, 10))
+        style.configure("Punihard.Treeview.Heading", background="#292929",
+                        foreground=TEXT, relief="flat", font=(FONT, 10, "bold"))
+        self.sales = {}
+        self.articles = {}
+        self.article_labels = {}
+        self.lines = {}
+        self.remitos = {}
+        self._build()
+        self._load_sales()
+        self._load_articles()
         self.refrescar()
 
-    # ======================================================
-    # REFRESCAR LISTA
-    # ======================================================
+    def _build(self):
+        header = tk.Frame(self, bg=PANEL, height=68)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        tk.Label(header, text="Remitos de Entrega", bg=PANEL, fg=TEXT,
+                 font=(FONT, 21, "bold")).pack(side="left", padx=24)
+        scroll = ScrollableFrame(self, bg=BG)
+        scroll.pack(fill="both", expand=True, padx=12, pady=8)
+        content = scroll.content
+        content.rowconfigure(2, weight=2)
+        content.rowconfigure(4, weight=3)
 
-    def refrescar(self):
+        form = tk.LabelFrame(content, text="Nuevo remito", bg=PANEL, fg=TEXT,
+                             font=(FONT, 10, "bold"), padx=10, pady=8)
+        form.grid(row=0, column=0, sticky="ew", pady=(0, 9))
+        form.columnconfigure(1, weight=1)
+        form.columnconfigure(3, weight=1)
+        tk.Label(form, text="Número", bg=PANEL, fg=MUTED).grid(row=0, column=0, sticky="w")
+        self.number_entry = tk.Entry(form, bg=INPUT, fg=TEXT, insertbackground=TEXT, relief="flat")
+        self.number_entry.insert(0, datetime.now().strftime("R-%Y%m%d-%H%M%S"))
+        self.number_entry.grid(row=1, column=0, sticky="ew", padx=(0, 10), ipady=5)
+        tk.Label(form, text="Venta existente (opcional)", bg=PANEL, fg=MUTED).grid(
+            row=0, column=1, sticky="w"
+        )
+        self.sale_var = tk.StringVar(value="Remito independiente")
+        self.sale_combo = ttk.Combobox(form, textvariable=self.sale_var, state="readonly")
+        self.sale_combo.grid(row=1, column=1, sticky="ew", padx=(0, 10))
+        self.sale_combo.bind("<<ComboboxSelected>>", self._sale_changed)
+        tk.Label(form, text="Destinatario", bg=PANEL, fg=MUTED).grid(row=0, column=2, sticky="w")
+        self.recipient_entry = tk.Entry(form, bg=INPUT, fg=TEXT, insertbackground=TEXT, relief="flat")
+        self.recipient_entry.grid(row=1, column=2, sticky="ew", padx=(0, 10), ipady=5)
+        tk.Label(form, text="Dirección de entrega", bg=PANEL, fg=MUTED).grid(
+            row=0, column=3, sticky="w"
+        )
+        self.address_entry = tk.Entry(form, bg=INPUT, fg=TEXT, insertbackground=TEXT, relief="flat")
+        self.address_entry.grid(row=1, column=3, sticky="ew", ipady=5)
+        tk.Label(form, text="Observaciones", bg=PANEL, fg=MUTED).grid(
+            row=2, column=0, sticky="w", pady=(7, 0)
+        )
+        self.notes_entry = tk.Entry(form, bg=INPUT, fg=TEXT, insertbackground=TEXT, relief="flat")
+        self.notes_entry.grid(row=3, column=0, columnspan=4, sticky="ew", ipady=5)
 
-        for widget in self.frame_lista.winfo_children():
-            widget.destroy()
+        self.lines_panel = tk.Frame(content, bg=BG)
+        self.lines_panel.grid(row=1, column=0, sticky="ew", pady=(0, 7))
+        tk.Label(self.lines_panel, text="Artículo", bg=BG, fg=MUTED).pack(side="left")
+        self.article_var = tk.StringVar()
+        self.article_combo = ttk.Combobox(self.lines_panel, textvariable=self.article_var, state="readonly")
+        self.article_combo.pack(side="left", fill="x", expand=True, padx=(6, 12))
+        tk.Label(self.lines_panel, text="Cantidad", bg=BG, fg=MUTED).pack(side="left")
+        self.quantity_entry = tk.Entry(self.lines_panel, bg=INPUT, fg=TEXT, insertbackground=TEXT,
+                                       relief="flat", width=9)
+        self.quantity_entry.insert(0, "1")
+        self.quantity_entry.pack(side="left", padx=(6, 9), ipady=5)
+        self.add_button = tk.Button(
+            self.lines_panel, text="Agregar artículo", command=self.agregar_linea,
+            bg="#353535", fg=TEXT, relief="flat", padx=12, pady=5,
+        )
+        self.add_button.pack(side="left")
 
-        remitos = listar_remitos()
+        self.lines_tree = ttk.Treeview(
+            content, columns=("articulo", "cantidad", "unidad"),
+            show="headings", style="Punihard.Treeview", height=4,
+        )
+        for col, title, width, anchor in (
+            ("articulo", "Detalle del remito independiente", 450, "w"),
+            ("cantidad", "Cantidad", 120, "e"),
+            ("unidad", "Unidad", 120, "w"),
+        ):
+            self.lines_tree.heading(col, text=title)
+            self.lines_tree.column(col, width=width, anchor=anchor)
+        self.lines_tree.grid(row=2, column=0, sticky="nsew", pady=(0, 7))
+        fit_tree_columns(self.lines_tree, {"articulo": 3.2, "cantidad": 1, "unidad": 1})
+        self.lines_tree.bind("<Double-1>", lambda _event: self.quitar_linea())
 
-        # ==================================================
-        # NO HAY REMITOS
-        # ==================================================
+        actions = tk.Frame(content, bg=BG)
+        actions.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        tk.Button(actions, text="Quitar línea", command=self.quitar_linea, bg="#353535",
+                  fg=TEXT, relief="flat", padx=10, pady=5).pack(side="left")
+        tk.Button(actions, text="Registrar remito", command=self.guardar, bg=ORANGE,
+                  fg="white", relief="flat", padx=16, pady=6).pack(side="right")
 
-        if not remitos:
+        history_panel = tk.Frame(content, bg=PANEL)
+        history_panel.grid(row=4, column=0, sticky="nsew")
+        self.tree = ttk.Treeview(
+            history_panel, columns=("numero", "fecha", "destinatario", "venta", "estado"),
+            show="headings", style="Punihard.Treeview",
+        )
+        for col, title, width, anchor in (
+            ("numero", "Remito", 150, "w"),
+            ("fecha", "Fecha", 155, "w"),
+            ("destinatario", "Destinatario", 260, "w"),
+            ("venta", "Venta vinculada", 170, "w"),
+            ("estado", "Estado", 170, "w"),
+        ):
+            self.tree.heading(col, text=title)
+            self.tree.column(col, width=width, anchor=anchor)
+        self.tree.pack(side="top", fill="both", expand=True, padx=8, pady=8)
+        fit_tree_columns(self.tree, {
+            "numero": 1, "fecha": 1.1, "destinatario": 1.8, "venta": 1.3, "estado": 1.2,
+        })
+        actions = tk.Frame(history_panel, bg=PANEL)
+        actions.pack(side="bottom", fill="x", padx=8, pady=(0, 8))
+        tk.Button(actions, text="Marcar entregado", command=self.entregar, bg="#287a55",
+                  fg="white", relief="flat", padx=10, pady=5).pack(side="left", padx=(0, 6))
+        tk.Button(actions, text="Exportar PDF", command=self.exportar_pdf, bg="#353535",
+                  fg=TEXT, relief="flat", padx=10, pady=5).pack(side="left")
 
-            tk.Label(
-                self.frame_lista,
-                text="No hay remitos registrados",
-                bg=COLOR_PANEL,
-                fg=COLOR_SECUNDARIO,
-                font=(FUENTE, 11)
-            ).pack(pady=20)
+    def _load_sales(self):
+        self.sales = {}
+        labels = ["Remito independiente"]
+        for sale in listar_ventas()[:100]:
+            customer = sale.cliente.nombre_completo if sale.cliente else "Consumidor Final"
+            label = f"{sale.numero} — {customer} — {sale.fecha:%d/%m/%Y}"
+            labels.append(label)
+            self.sales[label] = sale
+        self.sale_combo.configure(values=labels)
 
+    def _load_articles(self):
+        self.articles = {}
+        labels = []
+        for item in listar_articulos():
+            label = f"{item.codigo or 'S/C'} — {item.nombre}"
+            self.articles[label] = item
+            labels.append(label)
+        self.article_combo.configure(values=labels)
+
+    def _sale_changed(self, _event=None):
+        independent = self.sale_var.get() == "Remito independiente"
+        state = "normal" if independent else "disabled"
+        self.article_combo.configure(state="readonly" if independent else "disabled")
+        self.quantity_entry.configure(state=state)
+        self.add_button.configure(state=state)
+        sale = self.sales.get(self.sale_var.get())
+        if sale:
+            if sale.cliente:
+                self.recipient_entry.delete(0, "end")
+                self.recipient_entry.insert(0, sale.cliente.nombre_completo)
+                self.address_entry.delete(0, "end")
+                self.address_entry.insert(0, sale.cliente.direccion or "")
+            for row in self.lines_tree.get_children():
+                self.lines_tree.delete(row)
+        else:
+            self.lines.clear()
+            self._render_lines()
+
+    def agregar_linea(self):
+        item = self.articles.get(self.article_var.get())
+        if not item:
+            messagebox.showwarning("Remito", "Elegí un artículo.")
             return
+        try:
+            quantity = float(self.quantity_entry.get().replace(",", "."))
+        except ValueError:
+            messagebox.showerror("Cantidad", "Ingresá una cantidad válida.")
+            return
+        if quantity <= 0:
+            messagebox.showerror("Cantidad", "La cantidad debe ser mayor a cero.")
+            return
+        self.lines[item.id] = self.lines.get(item.id, 0) + quantity
+        self._render_lines()
 
-        # ==================================================
-        # LISTADO
-        # ==================================================
-
-        for r in remitos:
-
-            fila = tk.Frame(
-                self.frame_lista,
-                bg=COLOR_CARD,
-                highlightbackground=COLOR_BORDE,
-                highlightthickness=1
+    def _render_lines(self):
+        for row in self.lines_tree.get_children():
+            self.lines_tree.delete(row)
+        for article_id, quantity in self.lines.items():
+            item = self.articles[article_id]
+            self.lines_tree.insert(
+                "", "end", iid=str(article_id),
+                values=(item.nombre, f"{quantity:g}", item.unidad),
             )
 
-            fila.pack(
-                fill="x",
-                pady=6,
-                ipady=10
-            )
-
-            # Validar estado booleano de la DB
-            est_texto = "✅ Firmado" if getattr(r, "firmado", False) else "⏳ Pendiente"
-            obs_texto = r.observaciones if r.observaciones else "-"
-
-            info = (
-                f"📄 Nº: {r.numero}   |   "
-                f"Venta ID: {r.venta_id}   |   "
-                f"Obs: {obs_texto}   |   "
-                f"{est_texto}"
-            )
-
-            tk.Label(
-                fila,
-                text=info,
-                bg=COLOR_CARD,
-                fg=COLOR_TEXTO,
-                anchor="w",
-                font=(FUENTE, 10)
-            ).pack(
-                side="left",
-                padx=15,
-                expand=True,
-                fill="x"
-            )
-
-            # ==================================================
-            # BOTON ACCION (FIRMAR SI ESTÁ PENDIENTE)
-            # ==================================================
-            
-            if not getattr(r, "firmado", False):
-                btn_firmar = tk.Button(
-                    fila,
-                    text="✍️ Firmar",
-                    command=lambda id=r.id: self.firmar_y_refrescar(id),
-                    bg=COLOR_AZUL,
-                    fg="white",
-                    activebackground=COLOR_AZUL_HOVER,
-                    activeforeground="white",
-                    relief="flat",
-                    bd=0,
-                    cursor="hand2",
-                    font=(FUENTE, 9, "bold"),
-                    padx=15,
-                    pady=6
-                )
-
-                btn_firmar.pack(
-                    side="right",
-                    padx=10
-                )
-
-                hover(
-                    btn_firmar,
-                    COLOR_AZUL,
-                    COLOR_AZUL_HOVER
-                )
-
-    # ======================================================
-    # ACCION DE FIRMA
-    # ======================================================
-
-    def firmar_y_refrescar(self, id):
-
-        if messagebox.askyesno("Confirmación", f"¿Marcar el Remito ID {id} como firmado?"):
-            exito, mensaje = firmar_remito(id)
-            if exito:
-                messagebox.showinfo("Éxito", mensaje)
-                self.refrescar()
-            else:
-                messagebox.showerror("Error", mensaje)
-
-    # ======================================================
-    # GUARDAR
-    # ======================================================
+    def quitar_linea(self):
+        selection = self.lines_tree.selection()
+        if selection:
+            self.lines.pop(int(selection[0]), None)
+            self._render_lines()
 
     def guardar(self):
-
-        num = self.entry_numero.get().strip()
-        v_id = self.entry_venta.get().strip()
-        obs = self.entry_obs.get().strip()
-
-        if not num or not v_id:
-            messagebox.showwarning("Campos Vacíos", "El Número de Remito y el ID de Venta son obligatorios.")
-            return
-
-        if not v_id.isdigit():
-            messagebox.showwarning("Tipo Incorrecto", "El ID de Venta debe ser un número entero.")
-            return
-
-        exito, msg = crear_remito(
-            numero=num,
-            venta_id=int(v_id),
-            observaciones=obs
+        sale = self.sales.get(self.sale_var.get())
+        items = [
+            {"articulo_id": article_id, "cantidad": quantity}
+            for article_id, quantity in self.lines.items()
+        ]
+        ok, message = crear_remito(
+            self.number_entry.get(),
+            venta_id=sale.id if sale else None,
+            observaciones=self.notes_entry.get(),
+            destinatario=self.recipient_entry.get(),
+            direccion_entrega=self.address_entry.get(),
+            items=items,
         )
+        if not ok:
+            messagebox.showerror("No se pudo crear el remito", message)
+            return
+        messagebox.showinfo("Remitos", message)
+        self.lines.clear()
+        self._render_lines()
+        self.number_entry.delete(0, "end")
+        self.number_entry.insert(0, datetime.now().strftime("R-%Y%m%d-%H%M%S"))
+        self.sale_var.set("Remito independiente")
+        self._sale_changed()
+        self.recipient_entry.delete(0, "end")
+        self.address_entry.delete(0, "end")
+        self.notes_entry.delete(0, "end")
+        self.refrescar()
 
-        if exito:
-            messagebox.showinfo("Información", msg)
-            self.entry_numero.delete(0, "end")
-            self.entry_venta.delete(0, "end")
-            self.entry_obs.delete(0, "end")
+    def refrescar(self):
+        self.remitos = {item.id: item for item in listar_remitos()}
+        self.tree.delete(*self.tree.get_children())
+        for remito in self.remitos.values():
+            self.tree.insert(
+                "", "end", iid=str(remito.id),
+                values=(
+                    remito.numero, remito.fecha.strftime("%d/%m/%Y %H:%M"),
+                    remito.destinatario or (
+                        remito.venta.cliente.nombre_completo
+                        if remito.venta and remito.venta.cliente else "—"
+                    ),
+                    remito.venta.numero if remito.venta else "Independiente",
+                    remito.estado,
+                ),
+            )
+
+    def _selected(self):
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Remitos", "Seleccioná un remito.")
+            return None
+        return self.remitos.get(int(selection[0]))
+
+    def entregar(self):
+        remito = self._selected()
+        if not remito:
+            return
+        if not messagebox.askyesno("Confirmar entrega", f"¿Marcar {remito.numero} como entregado?"):
+            return
+        ok, message = marcar_entregado(remito.id)
+        if ok:
             self.refrescar()
+            messagebox.showinfo("Remitos", message)
         else:
-            messagebox.showerror("Error", msg)
+            messagebox.showerror("Remitos", message)
+
+    def exportar_pdf(self):
+        remito = self._selected()
+        if not remito:
+            return
+        path = filedialog.asksaveasfilename(
+            title="Exportar remito", defaultextension=".pdf",
+            initialfile=f"remito_{remito.numero}.pdf",
+            filetypes=(("PDF", "*.pdf"),),
+        )
+        if not path:
+            return
+        with open(path, "wb") as file:
+            file.write(generar_remito_pdf(remito).getvalue())
+        try:
+            os.startfile(path)
+        except (AttributeError, OSError):
+            messagebox.showinfo("Remito PDF", f"Se guardó el archivo en:\n{path}")
